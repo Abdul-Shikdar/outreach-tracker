@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Abdul's Tech — Outreach & Jobs</title>
+<meta name="description" content="Abdul's Tech Solutions — Weekly outreach tracker and jobs dashboard">
+<meta name="theme-color" content="#0d0d0d">
+<link rel="manifest" href="manifest.json">
+<style>
+:root {
+  --bg:#0d0d0d; --bg2:#161616; --bg3:#1e1e1e; --bg4:#252525;
+  --border:#2a2a2a; --border2:#383838;
+  --text:#f2f2f2; --text2:#999; --text3:#555;
+  --blue:#3b82f6; --blue-d:#1a2d4a;
+  --green:#22c55e; --green-d:#0f2d1a;
+  --amber:#f59e0b; --amber-d:#2d1f05;
+  --red:#ef4444; --red-d:#2d0f0f;
+  --purple:#a855f7; --purple-d:#1f0f30;
+  --teal:#14b8a6; --teal-d:#0d2d2a;
+  --r:12px; --rs:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;line-height:1.5;min-height:100vh;padding-bottom:70px;}
+
+/* NAV */
+nav{background:var(--bg2);border-bottom:1px solid var(--border);height:54px;display:flex;align-items:center;padding:0 16px;position:sticky;top:0;z-index:30;}
+.nav-logo{font-size:16px;font-weight:700;color:var(--text);margin-right:auto;}
+.nav-logo span{color:var(--blue);}
+.nav-logo small{font-size:11px;color:var(--text3);font-weight:400;display:block;margin-top:-2px;}
+
+/* BOTTOM TAB BAR */
+.tab-bar{position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);display:flex;z-index:30;height:62px;}
+.tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:var(--text3);font-size:10px;padding:8px 0;border:none;background:none;}
+.tab-item.active{color:var(--blue);}
+.tab-icon{font-size:20px;line-height:1;}
+
+/* PAGES */
+.page{display:none;padding:14px 16px;max-width:700px;margin:0 auto;}
+.page.active{display:block;}
+
+/* SECTION HEADERS */
+.sec{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 10px;}
+
+/* STATS GRID */
+.stats4{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;}
+.stats3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+.stat{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:13px;text-align:center;}
+.stat-n{font-size:26px;font-weight:700;}
+.stat-l{font-size:11px;color:var(--text2);margin-top:1px;text-transform:uppercase;letter-spacing:.04em;}
+
+/* PROGRESS */
+.prog{height:5px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:16px;}
+.prog-f{height:100%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:3px;transition:width .4s;}
+
+/* CARD */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;}
+.card.green-border{border-color:var(--green-d);}
+.card.amber-border{border-color:var(--amber-d);}
+.card.blue-border{border-color:var(--blue-d);}
+.card.replied-border{border-color:var(--green);}
+
+/* TAGS */
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0;}
+.tag-blue{background:var(--blue-d);color:var(--blue);}
+.tag-green{background:var(--green-d);color:var(--green);}
+.tag-amber{background:var(--amber-d);color:var(--amber);}
+.tag-red{background:var(--red-d);color:var(--red);}
+.tag-purple{background:var(--purple-d);color:var(--purple);}
+.tag-teal{background:var(--teal-d);color:var(--teal);}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:8px 16px;border-radius:var(--rs);border:1px solid var(--border2);background:var(--bg3);color:var(--text2);cursor:pointer;text-decoration:none;transition:all .15s;font-family:inherit;}
+.btn:hover{border-color:var(--blue);color:var(--text);}
+.btn-primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600;}
+.btn-primary:hover{opacity:.88;color:#fff;}
+.btn-green{background:var(--green-d);border-color:var(--green);color:var(--green);}
+.btn-amber{background:var(--amber-d);border-color:var(--amber);color:var(--amber);}
+.btn-sm{font-size:12px;padding:5px 10px;}
+.btn-block{display:flex;width:100%;justify-content:center;margin-top:10px;}
+
+/* BIZ CARD */
+.biz-name{font-size:14px;font-weight:600;color:var(--text);}
+.biz-meta{font-size:12px;color:var(--text2);margin-top:2px;}
+.biz-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;}
+.msg-box{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:10px 12px;font-size:13px;color:var(--text2);line-height:1.65;cursor:pointer;margin:8px 0;}
+.msg-box .toggle-hint{font-size:11px;color:var(--blue);margin-top:4px;}
+.msg-box.open{color:var(--text);}
+.action-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;}
+.note-area{width:100%;background:var(--bg4);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;font-size:12px;color:var(--text);resize:none;font-family:inherit;margin-top:8px;}
+.note-area:focus{outline:none;border-color:var(--blue);}
+
+/* STATUS DOT */
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;flex-shrink:0;}
+.dot-grey{background:var(--text3);}
+.dot-amber{background:var(--amber);}
+.dot-green{background:var(--green);}
+
+/* JOB CARD */
+.job-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;}
+.job-title{font-size:14px;font-weight:600;color:var(--text);}
+.job-meta{font-size:12px;color:var(--text2);margin-top:2px;}
+.job-amount{font-size:20px;font-weight:700;color:var(--green);}
+
+/* FORM */
+.form-group{margin-bottom:12px;}
+.form-label{font-size:12px;color:var(--text2);margin-bottom:4px;display:block;}
+.form-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:9px 12px;font-size:14px;color:var(--text);font-family:inherit;}
+.form-input:focus{outline:none;border-color:var(--blue);}
+select.form-input option{background:var(--bg3);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;display:none;align-items:flex-end;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r) var(--r) 0 0;padding:20px 16px 32px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;}
+.modal-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;}
+.modal-close{background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:0 4px;}
+
+/* FB POST */
+.fb-text{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:14px;font-size:14px;color:var(--text);line-height:1.75;white-space:pre-wrap;}
+
+/* HISTORY */
+.hist-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.hist-name{font-size:13px;font-weight:600;color:var(--text);}
+.hist-meta{font-size:11px;color:var(--text2);margin-top:1px;}
+
+/* TIPS */
+.tip-row{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2);}
+.tip-row:last-child{border-bottom:none;}
+.tip-icon{font-size:16px;flex-shrink:0;margin-top:1px;}
+
+/* EMPTY */
+.empty{text-align:center;padding:40px 20px;color:var(--text2);}
+.empty-icon{font-size:40px;margin-bottom:10px;}
+.empty h3{font-size:16px;color:var(--text);margin-bottom:6px;}
+.empty p{font-size:13px;}
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--green);color:var(--green);font-size:13px;padding:8px 18px;border-radius:20px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:100;white-space:nowrap;}
+.toast.show{opacity:1;}
+
+/* DIVIDER */
+hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
+
+/* REVENUE BANNER */
+.rev-banner{background:linear-gradient(135deg,var(--blue-d),var(--green-d));border:1px solid var(--blue);border-radius:var(--r);padding:16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;}
+.rev-label{font-size:12px;color:var(--text2);}
+.rev-amount{font-size:28px;font-weight:700;color:var(--green);}
+
+@media(min-width:600px){
+  .stats4{grid-template-columns:repeat(4,1fr);}
+  .stats3{grid-template-columns:repeat(3,1fr);}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">Abdul's <span>Tech</span> Solutions<small>Outreach & Jobs Dashboard</small></div>
+</nav>
+
+<!-- BOTTOM TAB BAR -->
+<div class="tab-bar">
+  <button class="tab-item active" onclick="showPage('dashboard')" id="tab-dashboard">
+    <div class="tab-icon">📊</div><div>Dashboard</div>
+  </button>
+  <button class="tab-item" onclick="showPage('outreach')" id="tab-outreach">
+    <div class="tab-icon">📋</div><div>Outreach</div>
+  </button>
+  <button class="tab-item" onclick="showPage('post')" id="tab-post">
+    <div class="tab-icon">📘</div><div>FB Post</div>
+  </button>
+  <button class="tab-item" onclick="showPage('jobs')" id="tab-jobs">
+    <div class="tab-icon">💼</div><div>Jobs</div>
+  </button>
+  <button class="tab-item" onclick="showPage('history')" id="tab-history">
+    <div class="tab-icon">🕐</div><div>History</div>
+  </button>
+</div>
+
+<!-- DASHBOARD -->
+<div class="page active" id="page-dashboard">
+  <div class="rev-banner">
+    <div><div class="rev-label">Total earned from outreach</div><div class="rev-amount" id="d-revenue">£0</div></div>
+    <div style="text-align:right"><div class="rev-label">Jobs won</div><div style="font-size:24px;font-weight:700;color:var(--blue)" id="d-jobs-won">0</div></div>
+  </div>
+
+  <div class="sec">This week</div>
+  <div class="stats4">
+    <div class="stat"><div class="stat-n" style="color:var(--blue)" id="d-targets">0</div><div class="stat-l">Targets</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--amber)" id="d-messaged">0</div><div class="stat-l">Messaged</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--green)" id="d-replies">0</div><div class="stat-l">Replies</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--purple)" id="d-converted">0</div><div class="stat-l">Converted</div></div>
+  </div>
+  <div class="prog"><div class="prog-f" id="d-prog" style="width:0%"></div></div>
+
+  <div class="sec">All time</div>
+  <div class="stats3">
+    <div class="stat"><div class="stat-n" style="color:var(--blue)" id="d-all-contacted">0</div><div class="stat-l">Contacted</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--green)" id="d-all-replies">0</div><div class="stat-l">Replies</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--amber)" id="d-conv-rate">0%</div><div class="stat-l">Reply rate</div></div>
+  </div>
+
+  <div class="sec">Quick actions</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+    <button class="btn btn-primary" onclick="showPage('outreach');generateWeek();">Generate week ↻</button>
+    <button class="btn" onclick="openJobModal()">+ Log a job</button>
+    <button class="btn" onclick="showPage('post')">Copy FB post 📘</button>
+    <button class="btn" onclick="showPage('history')">View history 🕐</button>
+  </div>
+
+  <div class="sec">Recent activity</div>
+  <div id="d-recent"></div>
+</div>
+
+<!-- OUTREACH -->
+<div class="page" id="page-outreach">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div>
+      <div style="font-size:16px;font-weight:700" id="o-week-label">Week —</div>
+      <div style="font-size:12px;color:var(--text2)" id="o-week-dates"></div>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="generateWeek()">New week ↻</button>
+  </div>
+  <div class="stats3" style="margin-bottom:10px;">
+    <div class="stat"><div class="stat-n" style="color:var(--amber)" id="o-sent">0</div><div class="stat-l">Messaged</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--green)" id="o-replied">0</div><div class="stat-l">Replied</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--purple)" id="o-converted">0</div><div class="stat-l">Converted</div></div>
+  </div>
+  <div class="prog"><div class="prog-f" id="o-prog" style="width:0%"></div></div>
+  <div id="o-list"></div>
+</div>
+
+<!-- FACEBOOK POST -->
+<div class="page" id="page-post">
+  <div class="sec">This week's post</div>
+  <div class="card">
+    <div class="fb-text" id="fb-text">Generate this week's outreach first to get your Facebook post.</div>
+    <div class="action-row" style="margin-top:12px;">
+      <button class="btn btn-sm" onclick="copyPost()">📋 Copy post</button>
+      <a class="btn btn-sm" href="https://www.facebook.com" target="_blank" rel="noopener">📘 Open Facebook</a>
+      <button class="btn btn-sm" onclick="nextPost()">Next post ↻</button>
+    </div>
+  </div>
+
+  <div class="sec">Where to post it</div>
+  <div class="card">
+    <div class="tip-row"><div class="tip-icon">✅</div><div>Post on your <strong>Abdul's Tech Solutions Facebook page</strong></div></div>
+    <div class="tip-row"><div class="tip-icon">✅</div><div>Share to your personal profile too</div></div>
+    <div class="tip-row"><div class="tip-icon">✅</div><div>Post in <strong>Willenhall Community</strong>, <strong>Walsall Buy &amp; Sell</strong>, <strong>Wolverhampton Facebook groups</strong></div></div>
+    <div class="tip-row"><div class="tip-icon">✅</div><div>Pin it to the top of your page</div></div>
+    <div class="tip-row"><div class="tip-icon">⏰</div><div>Best times: <strong>Tue–Thu, 7–9pm</strong> or <strong>Sat morning</strong></div></div>
+    <div class="tip-row"><div class="tip-icon">📸</div><div>Add a photo of a recent repair if you have one — massively boosts reach</div></div>
+  </div>
+
+  <div class="sec">Local Facebook groups to join</div>
+  <div class="card">
+    <div class="tip-row"><div class="tip-icon">👥</div><div>Willenhall Community Group</div></div>
+    <div class="tip-row"><div class="tip-icon">👥</div><div>Walsall Buy, Sell &amp; Swap</div></div>
+    <div class="tip-row"><div class="tip-icon">👥</div><div>Wolverhampton Buy &amp; Sell</div></div>
+    <div class="tip-row"><div class="tip-icon">👥</div><div>West Midlands Small Business Network</div></div>
+    <div class="tip-row"><div class="tip-icon">👥</div><div>Birmingham &amp; Black Country Business Community</div></div>
+  </div>
+</div>
+
+<!-- JOBS -->
+<div class="page" id="page-jobs">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="font-size:16px;font-weight:700;">Jobs Tracker</div>
+    <button class="btn btn-primary btn-sm" onclick="openJobModal()">+ Add job</button>
+  </div>
+
+  <div class="stats3" style="margin-bottom:14px;">
+    <div class="stat"><div class="stat-n" style="color:var(--green)" id="j-revenue">£0</div><div class="stat-l">Total earned</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--blue)" id="j-total">0</div><div class="stat-l">Total jobs</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--amber)" id="j-pending">0</div><div class="stat-l">Pending</div></div>
+  </div>
+
+  <div id="j-list"></div>
+</div>
+
+<!-- HISTORY -->
+<div class="page" id="page-history">
+  <div style="font-size:16px;font-weight:700;margin-bottom:14px;">All contacted businesses</div>
+  <div id="h-list"></div>
+</div>
+
+<!-- ADD JOB MODAL -->
+<div class="modal-overlay" id="job-modal">
+  <div class="modal">
+    <div class="modal-title">Log a job <button class="modal-close" onclick="closeJobModal()">✕</button></div>
+    <div class="form-group">
+      <label class="form-label">Client name / business</label>
+      <input class="form-input" id="j-client" placeholder="e.g. Walsall Salon, Mrs Ahmed...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Job type</label>
+      <select class="form-input" id="j-type">
+        <option>Laptop repair</option>
+        <option>PC repair</option>
+        <option>Virus removal</option>
+        <option>SSD upgrade</option>
+        <option>RAM upgrade</option>
+        <option>Screen replacement</option>
+        <option>Data recovery</option>
+        <option>Network / WiFi setup</option>
+        <option>Printer repair</option>
+        <option>CCTV setup</option>
+        <option>Remote support</option>
+        <option>Software / OS reinstall</option>
+        <option>General IT support</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Amount (£)</label>
+        <input class="form-input" id="j-amount" type="number" placeholder="50">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select class="form-input" id="j-status">
+          <option value="pending">Pending</option>
+          <option value="completed">Completed</option>
+          <option value="paid">Paid ✓</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Source (how did they find you?)</label>
+      <select class="form-input" id="j-source">
+        <option value="outreach">Outreach (this app)</option>
+        <option value="bark">Bark.com</option>
+        <option value="google">Google / GBP</option>
+        <option value="facebook">Facebook</option>
+        <option value="referral">Word of mouth / referral</option>
+        <option value="website">Website</option>
+        <option value="returning">Returning client</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea class="form-input" id="j-notes" rows="2" placeholder="Any details about the job..."></textarea>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="saveJob()">Save job</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const KEY = 'abdultech_v4';
+const TYPE_COLORS = {'Accountant':'tag-blue','Solicitor':'tag-blue','Salon / Barber':'tag-purple','Fitness':'tag-purple','Takeaway':'tag-amber','Garage / MOT':'tag-amber','Healthcare':'tag-green','Pharmacy':'tag-green','Nursery':'tag-green','Optician':'tag-green','Estate Agent':'tag-red','Letting Agent':'tag-red','Community':'tag-teal'};
+
+const POOL = [
+  {name:'TAG Accountants Group',type:'Accountant',area:'Willenhall',contact:'Website form',link:'https://www.google.com/maps/search/accountants+willenhall',msg:`Hi, I'm Abdul — local IT technician based in Willenhall. I help small businesses with slow laptops, network issues, printers and general IT problems. Quick, affordable, no fix no fee. Just wanted to put myself on your radar — happy to pop in for a free look anytime.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'KST Accountancy',type:'Accountant',area:'Willenhall',contact:'kstaccountancy.co.uk',link:'https://www.google.com/maps/search/KST+accountancy+willenhall',msg:`Hi, I'm Abdul — local IT tech based in Willenhall. I support small businesses with IT issues — laptops, printers, WiFi, software. No fix no fee. If anything ever goes wrong just drop me a message.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Hair Salons',type:'Salon / Barber',area:'Willenhall',contact:'Facebook / WhatsApp',link:'https://www.google.com/maps/search/hair+salon+willenhall',msg:`Hi! I'm Abdul, local IT tech in Willenhall. I help salons keep their booking systems, card machines and WiFi running properly. Quick fix, affordable rates, no fix no fee. Save my number for when anything plays up 👍\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Takeaways & Restaurants',type:'Takeaway',area:'Willenhall',contact:'Facebook / WhatsApp',link:'https://www.google.com/maps/search/takeaway+willenhall',msg:`Hi, I'm Abdul — IT technician based in Willenhall. I help local businesses fix till systems, CCTV, WiFi and laptops. No fix no fee, quick response. If anything ever goes down just give me a shout 👍\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Solicitors',type:'Solicitor',area:'Willenhall',contact:'Email / Facebook',link:'https://www.google.com/maps/search/solicitors+willenhall',msg:`Hi, I'm Abdul — local IT technician serving businesses in Willenhall. I help professional offices with IT issues — software, laptops, networks and email setup. Reliable, local, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Dentists / GP Surgeries',type:'Healthcare',area:'Willenhall',contact:'Phone / Website',link:'https://www.google.com/maps/search/dentist+willenhall',msg:`Hi, I'm Abdul — local IT technician in Willenhall. I help medical and dental practices with computers, printers and network issues. DBS checked, professional and reliable.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Nurseries & Schools',type:'Nursery',area:'Willenhall',contact:'Phone / Email',link:'https://www.google.com/maps/search/nursery+willenhall',msg:`Hi, I'm Abdul — local IT technician based in Willenhall. I help nurseries and schools with computer setup, printers and internet issues. DBS checked with school IT experience.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Mosques / Community Centres',type:'Community',area:'Willenhall',contact:'Facebook / WhatsApp',link:'https://www.google.com/maps/search/mosque+willenhall',msg:`Assalamu Alaikum, I'm Abdul — local IT technician based in Willenhall. I help community centres and mosques with computers, projectors and WiFi at very affordable rates. Happy to help the community 🤝\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Paul Dubberley Estate Agents',type:'Estate Agent',area:'Willenhall',contact:'01902 633323',link:'https://www.google.com/maps/search/paul+dubberley+estate+agents+willenhall',msg:`Hi, I'm Abdul — local IT technician based in Willenhall. Estate agents rely heavily on laptops, email and printers — I help keep all that running smoothly. Quick call-outs, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Car Garages',type:'Garage / MOT',area:'Willenhall',contact:'Phone / Facebook',link:'https://www.google.com/maps/search/car+garage+willenhall',msg:`Hi, I'm Abdul — IT tech based in Willenhall. I help local garages with computers, till systems and networks. Quick, affordable, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'DJH Accountants',type:'Accountant',area:'Walsall',contact:'walsall@djh.co.uk',link:'https://www.google.com/maps/search/accountants+walsall',msg:`Hi, my name is Abdul and I'm a local IT technician based in Willenhall serving businesses across Walsall. On-site IT support — hardware repairs, slow PCs, network issues. No fix, no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Hair Salons',type:'Salon / Barber',area:'Walsall',contact:'Facebook / Google Maps',link:'https://www.google.com/maps/search/hair+salon+walsall',msg:`Hi! I'm Abdul, local IT tech covering Walsall. I help salons keep booking systems, card machines and WiFi running. Quick, affordable, no fix no fee 👍\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Estate Agents',type:'Estate Agent',area:'Walsall',contact:'Facebook / Email',link:'https://www.google.com/maps/search/estate+agents+walsall',msg:`Hi, I'm Abdul — IT technician covering Walsall. I keep estate agents' laptops, emails and printers running smoothly. Fast response, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Solicitors',type:'Solicitor',area:'Walsall',contact:'Email / Phone',link:'https://www.google.com/maps/search/solicitors+walsall',msg:`Hi, I'm Abdul — IT technician serving Walsall businesses. Fast call-outs for laptops, networks and software. No fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Takeaways',type:'Takeaway',area:'Walsall',contact:'WhatsApp / Facebook',link:'https://www.google.com/maps/search/takeaway+walsall',msg:`Hi, I'm Abdul — local IT tech covering Walsall. I fix till systems, WiFi, CCTV and laptops. Quick, affordable, no fix no fee 👍\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Gyms / Personal Trainers',type:'Fitness',area:'Walsall',contact:'Facebook / Instagram',link:'https://www.google.com/maps/search/gym+walsall',msg:`Hi, I'm Abdul — local IT tech covering Walsall. Gyms rely on card machines, booking systems and WiFi — I keep all that running. Fast, affordable, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Pharmacies',type:'Pharmacy',area:'Walsall',contact:'Phone / Email',link:'https://www.google.com/maps/search/pharmacy+walsall',msg:`Hi, I'm Abdul — DBS checked IT technician covering Walsall. I help pharmacies keep computers, printers and networks working. No fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Letting Agents',type:'Letting Agent',area:'Walsall',contact:'Email / Facebook',link:'https://www.google.com/maps/search/letting+agents+walsall',msg:`Hi, I'm Abdul — IT tech covering Walsall. Letting agencies need reliable IT — fast call-outs for any IT issues. Affordable, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Opticians',type:'Optician',area:'Walsall',contact:'Phone / Website',link:'https://www.google.com/maps/search/opticians+walsall',msg:`Hi, I'm Abdul — local IT tech covering Walsall. I help opticians with computers, booking systems and network issues. DBS checked. No fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Hair Salons',type:'Salon / Barber',area:'Wolverhampton',contact:'Facebook / Google Maps',link:'https://www.google.com/maps/search/hair+salon+wolverhampton',msg:`Hi! I'm Abdul — IT technician covering Wolverhampton. I help salons with booking systems, card machines and WiFi. Quick fix, no fix no fee 👍\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Accountants',type:'Accountant',area:'Wolverhampton',contact:'Email / Website',link:'https://www.google.com/maps/search/accountants+wolverhampton',msg:`Hi, I'm Abdul — IT technician covering Wolverhampton. I help small firms with IT issues — slow computers, networks, printers. Fast, reliable, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Takeaways',type:'Takeaway',area:'Wolverhampton',contact:'WhatsApp / Facebook',link:'https://www.google.com/maps/search/takeaway+wolverhampton',msg:`Hi, I'm Abdul — IT tech covering Wolverhampton. I fix tills, CCTV, WiFi and laptops. Quick, affordable, no fix no fee 👍\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Estate Agents',type:'Estate Agent',area:'Wolverhampton',contact:'Facebook / Email',link:'https://www.google.com/maps/search/estate+agents+wolverhampton',msg:`Hi, I'm Abdul — IT tech covering Wolverhampton. Estate agents need laptops and email running reliably. Fast, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Mosques / Community Centres',type:'Community',area:'Wolverhampton',contact:'Facebook / WhatsApp',link:'https://www.google.com/maps/search/mosque+wolverhampton',msg:`Assalamu Alaikum, I'm Abdul — IT technician covering Wolverhampton. I help mosques and community centres with computers, projectors and WiFi at affordable rates 🤝\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Solicitors',type:'Solicitor',area:'Wolverhampton',contact:'Email / Phone',link:'https://www.google.com/maps/search/solicitors+wolverhampton',msg:`Hi, I'm Abdul — IT technician serving Wolverhampton. Fast call-outs for office IT — laptops, networks, software. Professional, reliable, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Nurseries',type:'Nursery',area:'Wolverhampton',contact:'Phone / Email',link:'https://www.google.com/maps/search/nursery+wolverhampton',msg:`Hi, I'm Abdul — DBS checked IT tech covering Wolverhampton. I help nurseries with computer setup, printers and WiFi. Happy to pop in for a free chat.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Gyms',type:'Fitness',area:'Wolverhampton',contact:'Facebook / Instagram',link:'https://www.google.com/maps/search/gym+wolverhampton',msg:`Hi, I'm Abdul — IT tech covering Wolverhampton. Gym booking systems, card machines and WiFi — I keep it all running. Fast, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Car Garages',type:'Garage / MOT',area:'Wolverhampton',contact:'Phone / Facebook',link:'https://www.google.com/maps/search/car+garage+wolverhampton',msg:`Hi, I'm Abdul — IT tech covering Wolverhampton. I help garages with computers, tills and networks. Quick, affordable, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Salons',type:'Salon / Barber',area:'Bilston',contact:'Facebook / Google Maps',link:'https://www.google.com/maps/search/salon+bilston',msg:`Hi! I'm Abdul — local IT tech. I help salons keep booking systems, card machines and WiFi running. No fix no fee 👍\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Accountants',type:'Accountant',area:'Bilston',contact:'Email / Website',link:'https://www.google.com/maps/search/accountants+bilston',msg:`Hi, I'm Abdul — IT tech covering Bilston. I help small firms with computers, networks and printers. Fast, local, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Takeaways',type:'Takeaway',area:'Wednesfield',contact:'WhatsApp / Facebook',link:'https://www.google.com/maps/search/takeaway+wednesfield',msg:`Hi, I'm Abdul — IT tech covering Wednesfield. Tills, CCTV, WiFi and laptops sorted quickly. No fix no fee 👍\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Solicitors',type:'Solicitor',area:'West Bromwich',contact:'Email / Phone',link:'https://www.google.com/maps/search/solicitors+west+bromwich',msg:`Hi, I'm Abdul — IT technician serving West Bromwich. Fast office IT call-outs, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'GP Surgeries',type:'Healthcare',area:'Wednesfield',contact:'Phone / Website',link:'https://www.google.com/maps/search/GP+surgery+wednesfield',msg:`Hi, I'm Abdul — DBS checked IT technician covering Wednesfield. I help healthcare practices with computers and network issues. Professional, reliable.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Community Centres',type:'Community',area:'Bilston',contact:'Facebook / WhatsApp',link:'https://www.google.com/maps/search/community+centre+bilston',msg:`Hi, I'm Abdul — local IT tech covering Bilston. I help community centres with computers, projectors and WiFi at affordable rates 🤝\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Salons',type:'Salon / Barber',area:'Birmingham',contact:'Facebook / Google Maps',link:'https://www.google.com/maps/search/salon+handsworth+birmingham',msg:`Hi! I'm Abdul — IT tech covering Birmingham. Booking systems, card machines and WiFi sorted quickly. No fix no fee 👍\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Mosques',type:'Community',area:'Birmingham',contact:'Facebook / WhatsApp',link:'https://www.google.com/maps/search/mosque+birmingham',msg:`Assalamu Alaikum, I'm Abdul — IT technician covering Birmingham. I help mosques and community centres with IT at affordable rates. Happy to help the community 🤝\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Accountants',type:'Accountant',area:'Birmingham',contact:'Email / Website',link:'https://www.google.com/maps/search/accountants+handsworth+birmingham',msg:`Hi, I'm Abdul — IT tech covering Birmingham. I help small firms with computers, networks and printers. Local, fast, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Takeaways',type:'Takeaway',area:'Birmingham',contact:'WhatsApp / Facebook',link:'https://www.google.com/maps/search/takeaway+handsworth+birmingham',msg:`Hi, I'm Abdul — IT tech covering Birmingham. Tills, WiFi, CCTV and laptops sorted fast. No fix no fee 👍\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Letting Agents',type:'Letting Agent',area:'Birmingham',contact:'Email / Facebook',link:'https://www.google.com/maps/search/letting+agents+handsworth+birmingham',msg:`Hi, I'm Abdul — IT tech covering Birmingham. Letting agencies need reliable IT — fast call-outs, affordable, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+  {name:'Car Garages',type:'Garage / MOT',area:'Birmingham',contact:'Phone / Facebook',link:'https://www.google.com/maps/search/car+garage+handsworth+birmingham',msg:`Hi, I'm Abdul — IT tech covering Birmingham. Computers, tills and networks sorted for local garages. Quick, affordable, no fix no fee.\n\nAbdul's Tech Solutions\nW: abdulshikdar.com`},
+];
+
+const FB_POSTS = [
+  `🔧 Local IT support — sorted.\n\nHi everyone! I'm Abdul, your local IT technician based in Willenhall. Whether your laptop is running slow, your WiFi keeps dropping, your printer won't work, or you've got a virus — I can help.\n\n✅ Laptops & PCs\n✅ WiFi & Networks\n✅ Printers\n✅ Data Recovery\n✅ CCTV & Security\n✅ Remote Support\n\nNo fix, no fee. DBS checked. 8+ years experience.\n\n📍 Willenhall — covering Walsall, Wolverhampton & Birmingham\n🌐 abdulshikdar.com\n\n#WillenhallIT #WalsallBusiness #LocalTech #ComputerRepair #ITSupport`,
+  `💻 Is your laptop running like a snail?\n\nI'm Abdul — local IT technician in Willenhall. I can speed up your slow laptop, remove viruses, fix broken screens and sort your WiFi — usually same day.\n\n🚀 Speed up slow devices\n🛡️ Virus & malware removal\n🔌 WiFi & network fixes\n💾 Data recovery\n🖨️ Printer setup\n\nNo fix, no fee. Competitive rates. DBS checked.\n\n📍 Based in Willenhall, West Midlands\n🌐 abdulshikdar.com\n\n#ITSupport #WolverhamptonBusiness #WalsallIT #ComputerHelp #TechSupport`,
+  `🏢 Running a small business in the West Midlands?\n\nDon't let IT problems cost you time and money. I'm Abdul, local IT technician — I keep small businesses running smoothly.\n\n✅ On-site visits\n✅ Remote support\n✅ Network setup\n✅ Printer & hardware repairs\n✅ Data backup & recovery\n✅ CCTV systems\n\nAffordable. Reliable. No fix, no fee.\n\n📍 Willenhall — serving Walsall, Wolverhampton, Birmingham\n🌐 abdulshikdar.com\n\n#SmallBusiness #WestMidlandsBusiness #ITSupport #TechHelp #Wolverhampton`,
+  `📱 Phone, laptop or PC playing up?\n\nI'm Abdul — your local IT guy in Willenhall. I fix all kinds of tech problems for homes and businesses across the West Midlands.\n\n🔧 What I fix:\n→ Slow laptops & PCs\n→ Broken screens\n→ WiFi drops\n→ Virus removal\n→ Printer issues\n→ Data loss\n\nFast turnaround. Fair prices. No fix, no fee.\n\n📞 Message me or visit abdulshikdar.com\n📍 Willenhall, West Midlands\n\n#LocalIT #ComputerRepair #WillenhallBusiness #TechSupport #WalsallIT`,
+  `🛡️ Stay safe online — free advice this week.\n\nI'm Abdul — local IT technician in Willenhall. A lot of people in the West Midlands are getting caught out by scams, viruses and dodgy software.\n\nI can help with:\n✅ Virus & malware removal\n✅ Security setup\n✅ Safe browsing\n✅ Data backup\n✅ General tune-up\n\nDBS checked. 8+ years experience. No fix, no fee.\n\n📍 Willenhall — covering Walsall, Wolverhampton & Birmingham\n🌐 abdulshikdar.com\n\n#CyberSecurity #ITSupport #WestMidlands #StaySafeOnline #LocalTech`,
+  `⚡ Same day IT repairs — West Midlands\n\nNeed your laptop or PC fixed today? I'm Abdul, local IT tech based in Willenhall covering the whole West Midlands area.\n\nI come to you or you drop it off — whichever is easier.\n\n🔧 Hardware repairs\n💿 Software & OS fixes\n🌐 Network & WiFi\n🖨️ Printers\n📹 CCTV setup\n🔐 Security & antivirus\n\nNo fix, no fee. Fair pricing. DBS checked.\n\n🌐 abdulshikdar.com\n📍 Willenhall, West Midlands\n\n#SameDayRepair #ITSupport #Willenhall #Walsall #Wolverhampton`,
+];
+
+function load(){try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return{}}}
+function save(s){try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}}
+function toast(msg,col){const t=document.getElementById('toast');t.textContent=msg;t.style.borderColor=col||'var(--green)';t.style.color=col||'var(--green)';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+let state=load();
+let editJobId=null;
+
+function getWk(){const d=new Date();const j=new Date(d.getFullYear(),0,1);return`w${d.getFullYear()}_${Math.ceil(((d-j)/86400000+j.getDay()+1)/7)}`;}
+function getWkNum(){const d=new Date();const j=new Date(d.getFullYear(),0,1);return Math.ceil(((d-j)/86400000+j.getDay()+1)/7);}
+function getWkDates(){const n=new Date();const dy=n.getDay();const m=new Date(n);m.setDate(n.getDate()-(dy===0?6:dy-1));const s=new Date(m);s.setDate(m.getDate()+6);const f=d=>d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});return`${f(m)} – ${f(s)}`;}
+function getWS(){const k=getWk();if(!state[k])state[k]={businesses:[],fbPostIdx:0};return state[k];}
+
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='dashboard')renderDashboard();
+  if(name==='outreach')renderOutreach();
+  if(name==='post')renderPost();
+  if(name==='jobs')renderJobs();
+  if(name==='history')renderHistory();
+}
+
+function generateWeek(){
+  const wk=getWk();const ws=getWS();
+  if(ws.businesses.length>0&&!confirm('Generate 5 new businesses for this week?'))return;
+  const used=new Set();
+  Object.keys(state).forEach(k=>{if(k!==wk&&state[k]&&state[k].businesses)state[k].businesses.forEach(b=>used.add(b.name+b.area));});
+  const avail=POOL.filter(b=>!used.has(b.name+b.area));
+  const pool=avail.length>=5?avail:POOL;
+  const picked=[...pool].sort(()=>Math.random()-.5).slice(0,5).map(b=>({...b,status:'unsent',notes:'',contactedDate:null,id:Date.now()+Math.random()}));
+  const pi=((ws.fbPostIdx||0)+1)%FB_POSTS.length;
+  state[wk]={businesses:picked,fbPostIdx:pi};
+  save(state);
+  renderOutreach();renderPost();renderDashboard();
+  toast('5 new businesses generated ✓');
+}
+
+function renderDashboard(){
+  const ws=getWS();
+  const jobs=state.jobs||[];
+  const paid=jobs.filter(j=>j.status==='paid');
+  const revenue=paid.reduce((s,j)=>s+(parseFloat(j.amount)||0),0);
+  const sent=ws.businesses.filter(b=>b.status!=='unsent').length;
+  const replied=ws.businesses.filter(b=>b.status==='replied'||b.status==='converted').length;
+  const converted=ws.businesses.filter(b=>b.status==='converted').length;
+  document.getElementById('d-revenue').textContent='£'+revenue.toLocaleString();
+  document.getElementById('d-jobs-won').textContent=paid.length;
+  document.getElementById('d-targets').textContent=ws.businesses.length||5;
+  document.getElementById('d-messaged').textContent=sent;
+  document.getElementById('d-replies').textContent=replied;
+  document.getElementById('d-converted').textContent=converted;
+  document.getElementById('d-prog').style.width=ws.businesses.length?Math.round(sent/ws.businesses.length*100)+'%':'0%';
+  const allContacted=Object.keys(state).filter(k=>k.startsWith('w')&&state[k].businesses).flatMap(k=>state[k].businesses).filter(b=>b.status!=='unsent');
+  const allReplied=allContacted.filter(b=>b.status==='replied'||b.status==='converted');
+  document.getElementById('d-all-contacted').textContent=allContacted.length;
+  document.getElementById('d-all-replies').textContent=allReplied.length;
+  document.getElementById('d-conv-rate').textContent=allContacted.length?Math.round(allReplied.length/allContacted.length*100)+'%':'0%';
+  const recent=document.getElementById('d-recent');
+  const recentItems=[...allContacted].reverse().slice(0,5);
+  if(!recentItems.length){recent.innerHTML='<div class="empty"><div class="empty-icon">📋</div><h3>No activity yet</h3><p>Generate this week\'s targets to get started.</p></div>';return;}
+  recent.innerHTML=recentItems.map(b=>`<div class="hist-item"><div><div class="hist-name">${b.name}</div><div class="hist-meta">${b.type} · ${b.area}</div></div><span class="tag ${b.status==='converted'?'tag-teal':b.status==='replied'?'tag-green':'tag-amber'}">${b.status==='converted'?'Converted':b.status==='replied'?'Replied':'Messaged'}</span></div>`).join('');
+}
+
+function renderOutreach(){
+  const ws=getWS();
+  document.getElementById('o-week-label').textContent='Week '+getWkNum();
+  document.getElementById('o-week-dates').textContent=getWkDates();
+  const sent=ws.businesses.filter(b=>b.status!=='unsent').length;
+  const replied=ws.businesses.filter(b=>b.status==='replied'||b.status==='converted').length;
+  const converted=ws.businesses.filter(b=>b.status==='converted').length;
+  document.getElementById('o-sent').textContent=sent;
+  document.getElementById('o-replied').textContent=replied;
+  document.getElementById('o-converted').textContent=converted;
+  document.getElementById('o-prog').style.width=ws.businesses.length?Math.round(sent/ws.businesses.length*100)+'%':'0%';
+  const list=document.getElementById('o-list');
+  if(!ws.businesses.length){list.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><h3>No targets yet</h3><p>Tap "New week ↻" to generate this week's 5 businesses to contact.</p></div>`;return;}
+  list.innerHTML='';
+  ws.businesses.forEach((biz,i)=>{
+    const card=document.createElement('div');
+    card.className='card'+(biz.status==='converted'?' blue-border':biz.status==='replied'?' replied-border':biz.status==='contacted'?' green-border':'');
+    const tc=TYPE_COLORS[biz.type]||'tag-blue';
+    const dot=biz.status==='converted'?'dot-green':biz.status==='replied'?'dot-green':biz.status==='contacted'?'dot-amber':'dot-grey';
+    const short=biz.msg.slice(0,100)+'...';
+    card.innerHTML=`
+      <div class="biz-row">
+        <div><div class="biz-name"><span class="dot ${dot}"></span>${biz.name}</div><div class="biz-meta">${biz.type} · ${biz.area} · ${biz.contact}</div></div>
+        <span class="tag ${tc}">${biz.type}</span>
+      </div>
+      <div class="msg-box" id="mb${i}" onclick="toggleMsg(${i})">${short.replace(/\n/g,'<br>')}<div class="toggle-hint">Tap to expand ↓</div></div>
+      <textarea class="note-area" rows="2" placeholder="Notes — e.g. said call back in March..." onchange="saveNote(${i},this.value)">${biz.notes||''}</textarea>
+      <div class="action-row">
+        <button class="btn btn-sm" onclick="copyMsg(${i},this)">📋 Copy</button>
+        <a class="btn btn-sm" href="${biz.link}" target="_blank" rel="noopener">🗺 Maps</a>
+        <button class="btn btn-sm ${biz.status!=='unsent'?'btn-green':''}" onclick="markSent(${i})">${biz.status!=='unsent'?'✓ Sent':'Mark sent'}</button>
+        <button class="btn btn-sm ${biz.status==='replied'||biz.status==='converted'?'btn-amber':''}" onclick="markReplied(${i})">${biz.status==='replied'||biz.status==='converted'?'✓ Replied':'Got reply?'}</button>
+        <button class="btn btn-sm ${biz.status==='converted'?'btn-primary':''}" onclick="markConverted(${i})">${biz.status==='converted'?'✓ Client!':'Became client?'}</button>
+      </div>`;
+    list.appendChild(card);
+  });
+}
+
+function toggleMsg(i){
+  const ws=getWS();const el=document.getElementById('mb'+i);
+  if(el.classList.contains('open')){el.innerHTML=ws.businesses[i].msg.slice(0,100).replace(/\n/g,'<br>')+'...<div class="toggle-hint">Tap to expand ↓</div>';el.classList.remove('open');}
+  else{el.innerHTML=ws.businesses[i].msg.replace(/\n/g,'<br>')+'<div class="toggle-hint">Tap to collapse ↑</div>';el.classList.add('open');}
+}
+function copyMsg(i,btn){const ws=getWS();navigator.clipboard.writeText(ws.businesses[i].msg).then(()=>{btn.textContent='✓ Copied!';btn.classList.add('btn-green');toast('Message copied!');setTimeout(()=>{btn.textContent='📋 Copy';btn.classList.remove('btn-green');},2000);});}
+function saveNote(i,v){const ws=getWS();ws.businesses[i].notes=v;save(state);}
+function markSent(i){const ws=getWS();const b=ws.businesses[i];b.status=b.status==='unsent'?'contacted':'unsent';if(b.status==='contacted')b.contactedDate=new Date().toISOString();save(state);renderOutreach();renderDashboard();toast(b.status==='contacted'?'Marked as sent 📤':'Unmarked');}
+function markReplied(i){const ws=getWS();const b=ws.businesses[i];b.status=b.status==='replied'?'contacted':'replied';save(state);renderOutreach();renderDashboard();toast(b.status==='replied'?'Reply logged! 🎉':'Unmarked');}
+function markConverted(i){const ws=getWS();const b=ws.businesses[i];b.status=b.status==='converted'?'replied':'converted';save(state);renderOutreach();renderDashboard();if(b.status==='converted'){toast('Converted to client! 🚀 Log the job 👇','var(--blue)');setTimeout(()=>openJobModal(b.name),1000);}}
+
+function renderPost(){const ws=getWS();const idx=ws.fbPostIdx||0;document.getElementById('fb-text').textContent=FB_POSTS[idx];}
+function copyPost(){const ws=getWS();navigator.clipboard.writeText(FB_POSTS[ws.fbPostIdx||0]).then(()=>toast('Post copied! Paste into Facebook 📘'));}
+function nextPost(){const ws=getWS();ws.fbPostIdx=((ws.fbPostIdx||0)+1)%FB_POSTS.length;save(state);renderPost();toast('Next post loaded ↻');}
+
+function renderJobs(){
+  const jobs=state.jobs||[];
+  const total=jobs.reduce((s,j)=>s+(parseFloat(j.amount)||0),0);
+  const paid=jobs.filter(j=>j.status==='paid').reduce((s,j)=>s+(parseFloat(j.amount)||0),0);
+  const pending=jobs.filter(j=>j.status!=='paid').length;
+  document.getElementById('j-revenue').textContent='£'+paid.toLocaleString();
+  document.getElementById('j-total').textContent=jobs.length;
+  document.getElementById('j-pending').textContent=pending;
+  const list=document.getElementById('j-list');
+  if(!jobs.length){list.innerHTML='<div class="empty"><div class="empty-icon">💼</div><h3>No jobs yet</h3><p>When outreach converts to a job, tap "+ Add job" to log it here.</p></div>';return;}
+  list.innerHTML=[...jobs].reverse().map(j=>`
+    <div class="job-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;">
+        <div><div class="job-title">${j.client}</div><div class="job-meta">${j.type} · ${j.source} · ${new Date(j.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div></div>
+        <span class="tag ${j.status==='paid'?'tag-green':j.status==='completed'?'tag-amber':'tag-blue'}">${j.status}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="job-amount">£${parseFloat(j.amount||0).toFixed(2)}</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm" onclick="cycleJobStatus('${j.id}')">Update status</button>
+          <button class="btn btn-sm" style="color:var(--red)" onclick="deleteJob('${j.id}')">Delete</button>
+        </div>
+      </div>
+      ${j.notes?`<div style="font-size:12px;color:var(--text2);margin-top:6px;">${j.notes}</div>`:''}
+    </div>`).join('');
+}
+
+function openJobModal(clientName){
+  document.getElementById('j-client').value=clientName||'';
+  document.getElementById('j-amount').value='';
+  document.getElementById('j-notes').value='';
+  document.getElementById('j-status').value='pending';
+  document.getElementById('j-source').value='outreach';
+  editJobId=null;
+  document.getElementById('job-modal').classList.add('open');
+}
+function closeJobModal(){document.getElementById('job-modal').classList.remove('open');}
+function saveJob(){
+  const client=document.getElementById('j-client').value.trim();
+  const amount=document.getElementById('j-amount').value;
+  const type=document.getElementById('j-type').value;
+  const status=document.getElementById('j-status').value;
+  const source=document.getElementById('j-source').value;
+  const notes=document.getElementById('j-notes').value.trim();
+  if(!client){alert('Please enter a client name');return;}
+  if(!state.jobs)state.jobs=[];
+  state.jobs.push({id:Date.now().toString(),client,amount,type,status,source,notes,date:new Date().toISOString()});
+  save(state);closeJobModal();renderJobs();renderDashboard();toast('Job logged! 💼');
+}
+function cycleJobStatus(id){
+  const j=state.jobs.find(j=>j.id===id);if(!j)return;
+  const cycle=['pending','completed','paid'];j.status=cycle[(cycle.indexOf(j.status)+1)%cycle.length];
+  save(state);renderJobs();renderDashboard();toast('Status → '+j.status);
+}
+function deleteJob(id){if(!confirm('Delete this job?'))return;state.jobs=(state.jobs||[]).filter(j=>j.id!==id);save(state);renderJobs();renderDashboard();}
+
+function renderHistory(){
+  const entries=Object.keys(state).filter(k=>k.startsWith('w')&&state[k]&&state[k].businesses).flatMap(k=>state[k].businesses.filter(b=>b.status!=='unsent').map(b=>({...b,week:k}))).reverse();
+  const list=document.getElementById('h-list');
+  if(!entries.length){list.innerHTML='<div class="empty"><div class="empty-icon">🕐</div><h3>No history yet</h3><p>Once you start contacting businesses they\'ll appear here.</p></div>';return;}
+  list.innerHTML=entries.map(b=>`<div class="hist-item"><div><div class="hist-name">${b.name}</div><div class="hist-meta">${b.type} · ${b.area}${b.contactedDate?' · '+new Date(b.contactedDate).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):''}${b.notes?' · '+b.notes:''}</div></div><span class="tag ${b.status==='converted'?'tag-teal':b.status==='replied'?'tag-green':'tag-amber'}">${b.status==='converted'?'Converted':b.status==='replied'?'Replied':'Messaged'}</span></div>`).join('');
+}
+
+// Close modal on overlay click
+document.getElementById('job-modal').addEventListener('click',function(e){if(e.target===this)closeJobModal();});
+
+renderDashboard();
+</script>
+</body>
+</html>

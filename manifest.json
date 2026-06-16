@@ -1,0 +1,17 @@
+{
+  "name": "Abdul's Tech Outreach",
+  "short_name": "AT Outreach",
+  "description": "Abdul's Tech Solutions — Weekly outreach and jobs tracker",
+  "start_url": "/outreach-tracker/",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#0d0d0d",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://abdulshikdar.com/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}
