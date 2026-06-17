@@ -153,6 +153,29 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
   .stats4{grid-template-columns:repeat(4,1fr);}
   .stats3{grid-template-columns:repeat(3,1fr);}
 }
+
+/* DOC LINE ITEMS */
+.dc-item-row{display:grid;grid-template-columns:1fr 56px 70px 28px;gap:6px;margin-bottom:8px;align-items:center;}
+.dc-item-row input{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:8px 9px;font-size:13px;color:var(--text);font-family:inherit;width:100%;}
+.dc-item-row input:focus{outline:none;border-color:var(--blue);}
+.dc-item-del{background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;text-align:center;}
+.dc-item-del:hover{color:var(--red);}
+
+/* DOC FILTER BUTTONS */
+.doc-filter.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+
+/* DOC CARD */
+.doc-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;}
+.doc-num{font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.03em;}
+.doc-client{font-size:14px;font-weight:600;color:var(--text);margin-top:1px;}
+.doc-amount{font-size:18px;font-weight:700;color:var(--text);}
+
+/* PRINT STYLES — applied when #print-root is shown in the print window */
+@media print {
+  body * { visibility: hidden; }
+  #print-root, #print-root * { visibility: visible; }
+  #print-root { position: absolute; top: 0; left: 0; width: 100%; display:block !important; }
+}
 </style>
 </head>
 <body>
@@ -181,6 +204,9 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
   </button>
   <button class="tab-item" onclick="showPage('jobs')" id="tab-jobs">
     <div class="tab-icon">💼</div><div>Jobs</div>
+  </button>
+  <button class="tab-item" onclick="showPage('quotes')" id="tab-quotes">
+    <div class="tab-icon">🧾</div><div>Quotes</div>
   </button>
   <button class="tab-item" onclick="showPage('history')" id="tab-history">
     <div class="tab-icon">🕐</div><div>History</div>
@@ -215,7 +241,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
     <button class="btn btn-primary" onclick="showPage('outreach');generateWeek();">Generate week ↻</button>
     <button class="btn" onclick="openJobModal()">+ Log a job</button>
     <button class="btn" onclick="showPage('post')">Copy FB post 📘</button>
-    <button class="btn" onclick="showPage('history')">View history 🕐</button>
+    <button class="btn" onclick="showPage('quotes');openDocModal('quote');">+ New quote 🧾</button>
   </div>
 
   <div class="sec">Recent activity</div>
@@ -288,6 +314,28 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
   <div id="j-list"></div>
 </div>
 
+<!-- QUOTES & INVOICES -->
+<div class="page" id="page-quotes">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="font-size:16px;font-weight:700;">Quotes &amp; Invoices</div>
+    <button class="btn btn-primary btn-sm" onclick="openDocModal('quote')">+ New quote</button>
+  </div>
+
+  <div class="stats3" style="margin-bottom:14px;">
+    <div class="stat"><div class="stat-n" style="color:var(--amber)" id="q-open-quotes">0</div><div class="stat-l">Open quotes</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--blue)" id="q-unpaid">£0</div><div class="stat-l">Unpaid invoices</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--green)" id="q-paid-total">£0</div><div class="stat-l">Invoiced &amp; paid</div></div>
+  </div>
+
+  <div style="display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap;">
+    <button class="btn btn-sm doc-filter active" data-f="all" onclick="setDocFilter('all',this)">All</button>
+    <button class="btn btn-sm doc-filter" data-f="quote" onclick="setDocFilter('quote',this)">Quotes</button>
+    <button class="btn btn-sm doc-filter" data-f="invoice" onclick="setDocFilter('invoice',this)">Invoices</button>
+  </div>
+
+  <div id="q-list"></div>
+</div>
+
 <!-- HISTORY -->
 <div class="page" id="page-history">
   <div style="font-size:16px;font-weight:700;margin-bottom:14px;">All contacted businesses</div>
@@ -358,6 +406,57 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
 
 <div class="toast" id="toast"></div>
 
+<!-- QUOTE / INVOICE BUILDER MODAL -->
+<div class="modal-overlay" id="doc-modal">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-title"><span id="doc-modal-title">New quote</span> <button class="modal-close" onclick="closeDocModal()">✕</button></div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Client name</label>
+        <input class="form-input" id="dc-client" placeholder="e.g. Mrs Ahmed, Walsall Salon...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone / email</label>
+        <input class="form-input" id="dc-contact" placeholder="07... or email">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Client address (optional)</label>
+      <input class="form-input" id="dc-address" placeholder="For invoice header">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Issue date</label>
+        <input class="form-input" id="dc-issue" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label" id="dc-due-label">Valid until</label>
+        <input class="form-input" id="dc-due" type="date">
+      </div>
+    </div>
+
+    <div class="sec" style="margin-top:6px;">Line items</div>
+    <div id="dc-items"></div>
+    <button class="btn btn-sm" onclick="addDocItem()" style="margin-bottom:12px;">+ Add line item</button>
+
+    <div style="text-align:right;font-size:18px;font-weight:700;margin-bottom:14px;">
+      Total: <span id="dc-total" style="color:var(--green)">£0.00</span>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Notes (shown on the document)</label>
+      <textarea class="form-input" id="dc-notes" rows="2" placeholder="e.g. Parts under warranty for 6 months..."></textarea>
+    </div>
+
+    <button class="btn btn-primary btn-block" onclick="saveDoc()">Save</button>
+  </div>
+</div>
+
+<!-- PRINT VIEW (hidden, used to render printable doc) -->
+<div id="print-root" style="display:none;"></div>
+
 </div><!-- /app-content -->
 
 <script>
@@ -366,7 +465,8 @@ const SUPABASE_KEY = 'sb_publishable_sAGtZ8kRZu4vXGRg63nY0A_JEDiMSYE';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
-let cache = { outreach: {}, jobs: [], fbPostIdx: {} }; // in-memory mirror of cloud data, keyed by week for outreach
+let cache = { outreach: {}, jobs: [], fbPostIdx: {}, documents: [] }; // in-memory mirror of cloud data, keyed by week for outreach
+let docFilter = 'all';
 
 async function checkAuthAndInit() {
   const { data } = await sb.auth.getSession();
@@ -384,10 +484,11 @@ async function handleLogout() {
 }
 
 async function loadAllData() {
-  const [{ data: outreachRows }, { data: jobRows }, { data: fbRows }] = await Promise.all([
+  const [{ data: outreachRows }, { data: jobRows }, { data: fbRows }, { data: docRows }] = await Promise.all([
     sb.from('outreach').select('*').order('created_at', { ascending: true }),
     sb.from('jobs').select('*').order('created_at', { ascending: true }),
-    sb.from('fb_posts_used').select('*')
+    sb.from('fb_posts_used').select('*'),
+    sb.from('documents').select('*').order('created_at', { ascending: true })
   ]);
 
   cache.outreach = {};
@@ -407,6 +508,14 @@ async function loadAllData() {
 
   cache.fbPostIdx = {};
   (fbRows || []).forEach(r => { cache.fbPostIdx[r.week_key] = r.post_index; });
+
+  cache.documents = (docRows || []).map(d => ({
+    id: d.id, type: d.doc_type, number: d.doc_number, client: d.client_name,
+    contact: d.client_contact || '', address: d.client_address || '',
+    items: d.items || [], notes: d.notes || '', status: d.status,
+    issueDate: d.issue_date, dueDate: d.due_date,
+    linkedJobId: d.linked_job_id, convertedToInvoiceId: d.converted_to_invoice_id
+  }));
 }
 
 const TYPE_COLORS = {'Accountant':'tag-blue','Solicitor':'tag-blue','Salon / Barber':'tag-purple','Fitness':'tag-purple','Takeaway':'tag-amber','Garage / MOT':'tag-amber','Healthcare':'tag-green','Pharmacy':'tag-green','Nursery':'tag-green','Optician':'tag-green','Estate Agent':'tag-red','Letting Agent':'tag-red','Community':'tag-teal'};
@@ -512,6 +621,7 @@ function showPage(name){
   if(name==='outreach')renderOutreach();
   if(name==='post')renderPost();
   if(name==='jobs')renderJobs();
+  if(name==='quotes')renderQuotes();
   if(name==='history')renderHistory();
 }
 
@@ -679,8 +789,9 @@ function renderJobs(){
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div class="job-amount">£${parseFloat(j.amount||0).toFixed(2)}</div>
-        <div style="display:flex;gap:6px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
           <button class="btn btn-sm" onclick="cycleJobStatus('${j.id}')">Update status</button>
+          <button class="btn btn-sm" onclick="openDocModal('invoice',{client:'${j.client.replace(/'/g,"\\'")}'})">Invoice 🧾</button>
           <button class="btn btn-sm" style="color:var(--red)" onclick="deleteJob('${j.id}')">Delete</button>
         </div>
       </div>
@@ -726,6 +837,316 @@ async function deleteJob(id){
   cache.jobs=cache.jobs.filter(j=>j.id!==id);
   renderJobs();renderDashboard();
 }
+
+// ===================== QUOTES & INVOICES =====================
+
+let dcEditingId = null; // null = creating new, else editing existing doc id
+let dcItemSeq = 0;
+
+function genDocNumber(type){
+  const prefix = type==='quote' ? 'Q' : 'INV';
+  const existing = cache.documents.filter(d=>d.type===type);
+  const nums = existing.map(d=>{
+    const m = (d.number||'').match(/(\d+)$/);
+    return m ? parseInt(m[1],10) : 0;
+  });
+  const next = (nums.length?Math.max(...nums):0)+1;
+  return `${prefix}-${String(next).padStart(4,'0')}`;
+}
+
+function setDocFilter(f,btn){
+  docFilter=f;
+  document.querySelectorAll('.doc-filter').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderQuotes();
+}
+
+function renderQuotes(){
+  const docs=cache.documents||[];
+  const quotes=docs.filter(d=>d.type==='quote');
+  const invoices=docs.filter(d=>d.type==='invoice');
+  const openQuotes=quotes.filter(d=>d.status==='draft'||d.status==='sent').length;
+  const unpaidTotal=invoices.filter(d=>d.status!=='paid').reduce((s,d)=>s+docTotal(d),0);
+  const paidTotal=invoices.filter(d=>d.status==='paid').reduce((s,d)=>s+docTotal(d),0);
+  document.getElementById('q-open-quotes').textContent=openQuotes;
+  document.getElementById('q-unpaid').textContent='£'+unpaidTotal.toFixed(2);
+  document.getElementById('q-paid-total').textContent='£'+paidTotal.toFixed(2);
+
+  let list=[...docs].reverse();
+  if(docFilter!=='all') list=list.filter(d=>d.type===docFilter);
+
+  const el=document.getElementById('q-list');
+  if(!list.length){el.innerHTML='<div class="empty"><div class="empty-icon">🧾</div><h3>No quotes or invoices yet</h3><p>Tap "+ New quote" to create one for a client.</p></div>';return;}
+
+  el.innerHTML=list.map(d=>{
+    const total=docTotal(d);
+    const statusTag = d.status==='paid'||d.status==='accepted' ? 'tag-green'
+      : d.status==='declined' ? 'tag-red'
+      : d.status==='sent' ? 'tag-amber' : 'tag-blue';
+    const typeLabel = d.type==='quote' ? 'Quote' : 'Invoice';
+    return `
+    <div class="doc-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+        <div>
+          <div class="doc-num">${d.number} · ${typeLabel}</div>
+          <div class="doc-client">${d.client}</div>
+        </div>
+        <span class="tag ${statusTag}">${d.status}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+        <div class="doc-amount">£${total.toFixed(2)}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-sm" onclick="printDoc('${d.id}')">🖨 Print/PDF</button>
+          <button class="btn btn-sm" onclick="cycleDocStatus('${d.id}')">Status ↻</button>
+          ${d.type==='quote'&&!d.convertedToInvoiceId?`<button class="btn btn-sm btn-primary" onclick="convertQuoteToInvoice('${d.id}')">→ Invoice</button>`:''}
+          <button class="btn btn-sm" onclick="editDoc('${d.id}')">Edit</button>
+          <button class="btn btn-sm" style="color:var(--red)" onclick="deleteDoc('${d.id}')">Delete</button>
+        </div>
+      </div>
+      ${d.convertedToInvoiceId?`<div style="font-size:11px;color:var(--text2);margin-top:6px;">✓ Converted to invoice</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function docTotal(d){
+  return (d.items||[]).reduce((s,it)=>s+(parseFloat(it.qty)||0)*(parseFloat(it.price)||0),0);
+}
+
+function openDocModal(type, prefill){
+  dcEditingId=null;
+  document.getElementById('doc-modal-title').textContent = type==='quote' ? 'New quote' : 'New invoice';
+  document.getElementById('doc-modal-title').dataset.type=type;
+  document.getElementById('dc-due-label').textContent = type==='quote' ? 'Valid until' : 'Due date';
+  document.getElementById('dc-client').value = prefill?.client || '';
+  document.getElementById('dc-contact').value = prefill?.contact || '';
+  document.getElementById('dc-address').value = '';
+  document.getElementById('dc-notes').value = '';
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('dc-issue').value=today;
+  const due=new Date(); due.setDate(due.getDate() + (type==='quote'?30:14));
+  document.getElementById('dc-due').value=due.toISOString().slice(0,10);
+  document.getElementById('dc-items').innerHTML='';
+  dcItemSeq=0;
+  addDocItem();
+  updateDocTotal();
+  document.getElementById('doc-modal').classList.add('open');
+}
+
+function closeDocModal(){document.getElementById('doc-modal').classList.remove('open');}
+
+function addDocItem(prefillItem){
+  const id='dci'+(dcItemSeq++);
+  const row=document.createElement('div');
+  row.className='dc-item-row';
+  row.id=id;
+  row.innerHTML=`
+    <input placeholder="Description — e.g. SSD upgrade, call-out fee..." value="${prefillItem?.description? escapeAttr(prefillItem.description) : ''}" oninput="updateDocTotal()">
+    <input type="number" placeholder="Qty" value="${prefillItem?.qty ?? 1}" min="0" step="1" oninput="updateDocTotal()">
+    <input type="number" placeholder="£ each" value="${prefillItem?.price ?? ''}" min="0" step="0.01" oninput="updateDocTotal()">
+    <button class="dc-item-del" onclick="document.getElementById('${id}').remove();updateDocTotal();">✕</button>`;
+  document.getElementById('dc-items').appendChild(row);
+}
+
+function escapeAttr(s){return String(s).replace(/"/g,'&quot;');}
+
+function readDocItems(){
+  return [...document.querySelectorAll('#dc-items .dc-item-row')].map(row=>{
+    const inputs=row.querySelectorAll('input');
+    return { description: inputs[0].value.trim(), qty: parseFloat(inputs[1].value)||0, price: parseFloat(inputs[2].value)||0 };
+  }).filter(it=>it.description || it.qty || it.price);
+}
+
+function updateDocTotal(){
+  const items=readDocItems();
+  const total=items.reduce((s,it)=>s+it.qty*it.price,0);
+  document.getElementById('dc-total').textContent='£'+total.toFixed(2);
+}
+
+async function saveDoc(){
+  const client=document.getElementById('dc-client').value.trim();
+  if(!client){alert('Please enter a client name');return;}
+  const contact=document.getElementById('dc-contact').value.trim();
+  const address=document.getElementById('dc-address').value.trim();
+  const issueDate=document.getElementById('dc-issue').value;
+  const dueDate=document.getElementById('dc-due').value;
+  const notes=document.getElementById('dc-notes').value.trim();
+  const items=readDocItems();
+  if(!items.length){alert('Add at least one line item');return;}
+
+  if(dcEditingId){
+    // editing existing doc — keep type/number/status as is
+    const existing=cache.documents.find(d=>d.id===dcEditingId);
+    const {error}=await sb.from('documents').update({
+      client_name:client, client_contact:contact, client_address:address,
+      items, notes, issue_date:issueDate, due_date:dueDate||null
+    }).eq('id',dcEditingId);
+    if(error){toast('Error: '+error.message,'var(--red)');return;}
+    Object.assign(existing,{client,contact,address,items,notes,issueDate,dueDate});
+    toast('Updated ✓');
+  } else {
+    const type=document.getElementById('doc-modal-title').dataset.type;
+    const number=genDocNumber(type);
+    const {data,error}=await sb.from('documents').insert({
+      doc_type:type, doc_number:number, client_name:client, client_contact:contact,
+      client_address:address, items, notes, status:'draft', issue_date:issueDate, due_date:dueDate||null
+    }).select().single();
+    if(error){toast('Error: '+error.message,'var(--red)');return;}
+    cache.documents.push({
+      id:data.id, type:data.doc_type, number:data.doc_number, client:data.client_name,
+      contact:data.client_contact||'', address:data.client_address||'', items:data.items||[],
+      notes:data.notes||'', status:data.status, issueDate:data.issue_date, dueDate:data.due_date,
+      linkedJobId:data.linked_job_id, convertedToInvoiceId:data.converted_to_invoice_id
+    });
+    toast((type==='quote'?'Quote':'Invoice')+' '+number+' created 🧾');
+  }
+  closeDocModal();renderQuotes();
+}
+
+function editDoc(id){
+  const d=cache.documents.find(x=>x.id===id);if(!d)return;
+  dcEditingId=id;
+  document.getElementById('doc-modal-title').textContent=`Edit ${d.number}`;
+  document.getElementById('doc-modal-title').dataset.type=d.type;
+  document.getElementById('dc-due-label').textContent = d.type==='quote' ? 'Valid until' : 'Due date';
+  document.getElementById('dc-client').value=d.client;
+  document.getElementById('dc-contact').value=d.contact;
+  document.getElementById('dc-address').value=d.address;
+  document.getElementById('dc-notes').value=d.notes;
+  document.getElementById('dc-issue').value=d.issueDate;
+  document.getElementById('dc-due').value=d.dueDate||'';
+  document.getElementById('dc-items').innerHTML='';
+  dcItemSeq=0;
+  (d.items.length?d.items:[{}]).forEach(it=>addDocItem(it));
+  updateDocTotal();
+  document.getElementById('doc-modal').classList.add('open');
+}
+
+async function cycleDocStatus(id){
+  const d=cache.documents.find(x=>x.id===id);if(!d)return;
+  const cycle = d.type==='quote' ? ['draft','sent','accepted','declined'] : ['draft','sent','paid','overdue'];
+  d.status=cycle[(cycle.indexOf(d.status)+1)%cycle.length];
+  await sb.from('documents').update({status:d.status}).eq('id',id);
+  renderQuotes();toast('Status → '+d.status);
+}
+
+async function convertQuoteToInvoice(quoteId){
+  const q=cache.documents.find(x=>x.id===quoteId);if(!q)return;
+  if(!confirm(`Create an invoice from ${q.number} for ${q.client}?`))return;
+  const number=genDocNumber('invoice');
+  const today=new Date().toISOString().slice(0,10);
+  const due=new Date(); due.setDate(due.getDate()+14);
+  const {data,error}=await sb.from('documents').insert({
+    doc_type:'invoice', doc_number:number, client_name:q.client, client_contact:q.contact,
+    client_address:q.address, items:q.items, notes:q.notes, status:'draft',
+    issue_date:today, due_date:due.toISOString().slice(0,10)
+  }).select().single();
+  if(error){toast('Error: '+error.message,'var(--red)');return;}
+  cache.documents.push({
+    id:data.id, type:'invoice', number:data.doc_number, client:data.client_name,
+    contact:data.client_contact||'', address:data.client_address||'', items:data.items||[],
+    notes:data.notes||'', status:data.status, issueDate:data.issue_date, dueDate:data.due_date,
+    linkedJobId:null, convertedToInvoiceId:null
+  });
+  q.convertedToInvoiceId=data.id;
+  await sb.from('documents').update({converted_to_invoice_id:data.id}).eq('id',quoteId);
+  renderQuotes();
+  toast('Invoice '+number+' created from quote 🚀');
+}
+
+async function deleteDoc(id){
+  const d=cache.documents.find(x=>x.id===id);if(!d)return;
+  if(!confirm(`Delete ${d.number}? This can't be undone.`))return;
+  await sb.from('documents').delete().eq('id',id);
+  cache.documents=cache.documents.filter(x=>x.id!==id);
+  renderQuotes();toast('Deleted');
+}
+
+function printDoc(id){
+  const d=cache.documents.find(x=>x.id===id);if(!d)return;
+  const total=docTotal(d);
+  const typeLabel = d.type==='quote' ? 'QUOTE' : 'INVOICE';
+  const dueLabel = d.type==='quote' ? 'Valid until' : 'Due date';
+  const rows=(d.items||[]).map(it=>`
+    <tr>
+      <td style="padding:9px 6px;border-bottom:1px solid #2a2a2a;">${escapeHtml(it.description)}</td>
+      <td style="padding:9px 6px;border-bottom:1px solid #2a2a2a;text-align:center;">${it.qty}</td>
+      <td style="padding:9px 6px;border-bottom:1px solid #2a2a2a;text-align:right;">£${parseFloat(it.price).toFixed(2)}</td>
+      <td style="padding:9px 6px;border-bottom:1px solid #2a2a2a;text-align:right;">£${(it.qty*it.price).toFixed(2)}</td>
+    </tr>`).join('');
+
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${d.number} — ${typeLabel}</title>
+  <style>
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a1a;margin:0;padding:40px;background:#fff;}
+    .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #f59e0b;padding-bottom:20px;margin-bottom:28px;}
+    .brand{font-size:22px;font-weight:800;color:#0d0d0d;}
+    .brand span{color:#f59e0b;}
+    .brand-sub{font-size:12px;color:#666;margin-top:2px;}
+    .doctype{font-size:26px;font-weight:800;color:#0d0d0d;text-align:right;}
+    .docnum{font-size:13px;color:#666;text-align:right;margin-top:2px;}
+    .meta{display:flex;justify-content:space-between;margin-bottom:28px;gap:30px;}
+    .meta-block h4{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#999;margin:0 0 6px;}
+    .meta-block div{font-size:14px;line-height:1.5;}
+    table{width:100%;border-collapse:collapse;margin-bottom:20px;}
+    th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#999;padding:8px 6px;border-bottom:2px solid #0d0d0d;}
+    th:nth-child(2){text-align:center;} th:nth-child(3),th:nth-child(4){text-align:right;}
+    .total-row{display:flex;justify-content:flex-end;margin-top:6px;}
+    .total-box{width:240px;}
+    .total-box .line{display:flex;justify-content:space-between;font-size:14px;padding:4px 0;}
+    .total-box .grand{font-size:20px;font-weight:800;border-top:2px solid #0d0d0d;padding-top:10px;margin-top:6px;}
+    .notes{margin-top:30px;font-size:13px;color:#444;background:#f7f7f7;padding:14px 16px;border-radius:8px;}
+    .footer{margin-top:40px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999;text-align:center;}
+    @media print{ body{padding:0;} }
+  </style></head><body>
+    <div class="head">
+      <div>
+        <div class="brand">Abdul's <span>Tech</span> Solutions</div>
+        <div class="brand-sub">IT Repair & Support — Willenhall, West Midlands<br>abdulstechsolutions.com</div>
+      </div>
+      <div>
+        <div class="doctype">${typeLabel}</div>
+        <div class="docnum">${d.number}</div>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="meta-block">
+        <h4>Billed to</h4>
+        <div><strong>${escapeHtml(d.client)}</strong></div>
+        ${d.contact?`<div>${escapeHtml(d.contact)}</div>`:''}
+        ${d.address?`<div>${escapeHtml(d.address)}</div>`:''}
+      </div>
+      <div class="meta-block" style="text-align:right;">
+        <h4>Issue date</h4><div>${formatDateUK(d.issueDate)}</div>
+        <h4 style="margin-top:10px;">${dueLabel}</h4><div>${d.dueDate?formatDateUK(d.dueDate):'—'}</div>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Description</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="total-row"><div class="total-box">
+      <div class="line grand"><span>Total</span><span>£${total.toFixed(2)}</span></div>
+    </div></div>
+    ${d.notes?`<div class="notes">${escapeHtml(d.notes).replace(/\n/g,'<br>')}</div>`:''}
+    <div class="footer">Abdul's Tech Solutions · DBS Checked · No fix, no fee · Thank you for your business</div>
+  </body></html>`;
+
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(),300);
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function formatDateUK(iso){
+  if(!iso)return'—';
+  const d=new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
+
+// Close doc modal on overlay click
+document.getElementById('doc-modal').addEventListener('click',function(e){if(e.target===this)closeDocModal();});
 
 function renderHistory(){
   const entries=Object.values(cache.outreach).flat().filter(b=>b.status!=='unsent').reverse();
