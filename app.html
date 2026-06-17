@@ -166,6 +166,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
 
 /* DOC FILTER BUTTONS */
 .doc-filter.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+.jobs-subtab.active{background:var(--blue);border-color:var(--blue);color:#fff;}
 
 /* DOC CARD */
 .doc-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;}
@@ -321,7 +322,57 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
     <div class="stat"><div class="stat-n" style="color:var(--amber)" id="j-pending">0</div><div class="stat-l">Pending</div></div>
   </div>
 
-  <div id="j-list"></div>
+  <div style="display:flex;gap:7px;margin-bottom:14px;">
+    <button class="btn btn-sm jobs-subtab active" data-s="jobs" onclick="setJobsSubtab('jobs',this)">Jobs list</button>
+    <button class="btn btn-sm jobs-subtab" data-s="tickets" onclick="setJobsSubtab('tickets',this)">🎫 Tickets</button>
+  </div>
+
+  <div id="jobs-subview-jobs">
+    <div id="j-list"></div>
+  </div>
+
+  <div id="jobs-subview-tickets" style="display:none;">
+    <div class="stats3" style="margin-bottom:14px;">
+      <div class="stat"><div class="stat-n" style="color:var(--blue)" id="t-open">0</div><div class="stat-l">Open</div></div>
+      <div class="stat"><div class="stat-n" style="color:var(--amber)" id="t-progress">0</div><div class="stat-l">In progress</div></div>
+      <div class="stat"><div class="stat-n" style="color:var(--green)" id="t-done">0</div><div class="stat-l">Done</div></div>
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">Tickets are created automatically when you mark a quote as "Accepted" in Clients.</p>
+    <div id="ticket-list"></div>
+  </div>
+</div>
+
+<!-- TICKET DETAIL -->
+<div class="page" id="page-ticket-detail">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <button class="btn btn-sm" onclick="showPage('jobs')">← Back</button>
+  </div>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">
+    <div>
+      <div style="font-size:11px;color:var(--text2);" id="td-number">TICKET</div>
+      <div style="font-size:18px;font-weight:700;" id="td-title">Job title</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:2px;" id="td-client"></div>
+    </div>
+  </div>
+
+  <div class="form-group" style="margin-top:10px;">
+    <label class="form-label">Status</label>
+    <select class="form-input" id="td-status" onchange="updateTicketStatus()">
+      <option value="open">Open</option>
+      <option value="in_progress">In progress</option>
+      <option value="done">Done</option>
+    </select>
+  </div>
+
+  <div class="sec" style="margin-top:18px;">Notes &amp; updates</div>
+  <div id="td-log"></div>
+
+  <div class="form-group" style="margin-top:12px;">
+    <textarea class="form-input" id="td-new-note" rows="2" placeholder="Add a note — e.g. 'Ordered replacement screen', 'Fitted, testing now'..."></textarea>
+  </div>
+  <button class="btn btn-primary btn-block" onclick="addTicketNote()">+ Add note</button>
+
+  <button class="btn btn-block" style="margin-top:16px;" onclick="viewLinkedQuote()">View original quote</button>
 </div>
 
 <!-- CLIENTS LIST -->
@@ -392,6 +443,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
       <div style="font-size:12px;color:var(--text2);margin-top:2px;" id="cd-contact"></div>
     </div>
     <button class="btn btn-sm" onclick="editCustomerFromDetail()">Edit</button>
+    <button class="btn btn-sm" style="color:var(--red);margin-left:6px;" onclick="deleteCustomerFromDetail()">Delete</button>
   </div>
 
   <div class="stats3" style="margin:14px 0;">
@@ -588,7 +640,7 @@ const SUPABASE_KEY = 'sb_publishable_sAGtZ8kRZu4vXGRg63nY0A_JEDiMSYE';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
-let cache = { outreach: {}, jobs: [], fbPostIdx: {}, documents: [], customers: [] };
+let cache = { outreach: {}, jobs: [], fbPostIdx: {}, documents: [], customers: [], tickets: [] };
 let docFilter = 'all';
 
 async function checkAuthAndInit() {
@@ -607,12 +659,13 @@ async function handleLogout() {
 }
 
 async function loadAllData() {
-  const [{ data: outreachRows }, { data: jobRows }, { data: fbRows }, { data: docRows }, { data: custRows }] = await Promise.all([
+  const [{ data: outreachRows }, { data: jobRows }, { data: fbRows }, { data: docRows }, { data: custRows }, { data: ticketRows }] = await Promise.all([
     sb.from('outreach').select('*').order('created_at', { ascending: true }),
     sb.from('jobs').select('*').order('created_at', { ascending: true }),
     sb.from('fb_posts_used').select('*'),
     sb.from('documents').select('*').order('created_at', { ascending: true }),
-    sb.from('customers').select('*').order('name', { ascending: true })
+    sb.from('customers').select('*').order('name', { ascending: true }),
+    sb.from('tickets').select('*').order('created_at', { ascending: true })
   ]);
 
   cache.outreach = {};
@@ -644,6 +697,11 @@ async function loadAllData() {
     items: d.items || [], notes: d.notes || '', status: d.status,
     issueDate: d.issue_date, dueDate: d.due_date, paymentMethod: d.payment_method || 'cash',
     customerId: d.customer_id, linkedJobId: d.linked_job_id, convertedToInvoiceId: d.converted_to_invoice_id
+  }));
+
+  cache.tickets = (ticketRows || []).map(t => ({
+    id: t.id, number: t.ticket_number, customerId: t.customer_id, documentId: t.document_id,
+    title: t.title, status: t.status, log: t.log || []
   }));
 }
 
@@ -764,6 +822,27 @@ function openClientDetail(customerId){
   document.getElementById('tab-quotes').classList.add('active'); // keep Clients tab visually active
   document.getElementById('page-client-detail').classList.add('active');
   renderClientDetail();
+}
+
+let currentTicketId = null;
+let jobsSubtab = 'jobs';
+
+function setJobsSubtab(s, btn){
+  jobsSubtab=s;
+  document.querySelectorAll('.jobs-subtab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('jobs-subview-jobs').style.display = s==='jobs' ? '' : 'none';
+  document.getElementById('jobs-subview-tickets').style.display = s==='tickets' ? '' : 'none';
+  if(s==='tickets') renderTicketList();
+}
+
+function openTicketDetail(ticketId){
+  currentTicketId=ticketId;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-jobs').classList.add('active');
+  document.getElementById('page-ticket-detail').classList.add('active');
+  renderTicketDetail();
 }
 
 async function generateWeek(){
@@ -920,6 +999,7 @@ function renderJobs(){
   document.getElementById('j-revenue').textContent='£'+paid.toLocaleString();
   document.getElementById('j-total').textContent=jobs.length;
   document.getElementById('j-pending').textContent=pending;
+  renderTicketList();
   const list=document.getElementById('j-list');
   if(!jobs.length){list.innerHTML='<div class="empty"><div class="empty-icon">💼</div><h3>No jobs yet</h3><p>When outreach converts to a job, tap "+ Add job" to log it here.</p></div>';return;}
   list.innerHTML=[...jobs].reverse().map(j=>`
@@ -1077,6 +1157,23 @@ function closeCustomerModal(){document.getElementById('customer-modal').classLis
 function editCustomerFromDetail(){
   editCustomer(currentCustomerId);
 }
+
+async function deleteCustomerFromDetail(){
+  const c=getCustomer(currentCustomerId);if(!c)return;
+  const docs=custDocs(currentCustomerId);
+  const tickets=(cache.tickets||[]).filter(t=>t.customerId===currentCustomerId);
+  if(docs.length || tickets.length){
+    alert(`Can't delete ${c.name} — they have ${docs.length} quote/invoice${docs.length===1?'':'s'}${tickets.length?` and ${tickets.length} ticket${tickets.length===1?'':'s'}`:''} on record. Delete those first if you really want to remove this client.`);
+    return;
+  }
+  if(!confirm(`Delete ${c.name}? This can't be undone.`)) return;
+  const {error}=await sb.from('customers').delete().eq('id',currentCustomerId);
+  if(error){toast('Error: '+error.message,'var(--red)');return;}
+  cache.customers=cache.customers.filter(x=>x.id!==currentCustomerId);
+  toast('Client deleted');
+  showPage('quotes');
+}
+
 function editCustomer(id){
   const c=getCustomer(id);if(!c)return;
   cuEditingId=id;
@@ -1402,11 +1499,136 @@ function editDoc(id){
 
 async function setDocStatus(id, newStatus){
   const d=cache.documents.find(x=>x.id===id);if(!d)return;
+  const wasAccepted = d.status==='accepted';
   d.status=newStatus;
   await sb.from('documents').update({status:d.status}).eq('id',id);
   renderQuotes();
   if(document.getElementById('page-client-detail').classList.contains('active')) renderClientDetail();
   toast('Status → '+d.status);
+
+  if(d.type==='quote' && newStatus==='accepted' && !wasAccepted){
+    await createTicketFromQuote(d);
+  }
+}
+
+function genTicketNumber(){
+  const nums=(cache.tickets||[]).map(t=>{
+    const m=(t.number||'').match(/(\d+)$/);
+    return m?parseInt(m[1],10):0;
+  });
+  const next=(nums.length?Math.max(...nums):0)+1;
+  return `T-${String(next).padStart(4,'0')}`;
+}
+
+async function createTicketFromQuote(d){
+  // avoid duplicate tickets if a ticket already exists for this quote
+  const existing=(cache.tickets||[]).find(t=>t.documentId===d.id);
+  if(existing){ toast('Ticket '+existing.number+' already exists for this quote'); return; }
+
+  const number=genTicketNumber();
+  const title=d.summary || (d.type==='quote' ? 'Job from '+d.number : d.number);
+  const {data,error}=await sb.from('tickets').insert({
+    ticket_number:number, customer_id:d.customerId, document_id:d.id,
+    title, status:'open', log:[{timestamp:new Date().toISOString(), note:'Ticket created automatically — quote accepted.'}]
+  }).select().single();
+  if(error){toast('Ticket error: '+error.message,'var(--red)');return;}
+  cache.tickets.push({
+    id:data.id, number:data.ticket_number, customerId:data.customer_id, documentId:data.document_id,
+    title:data.title, status:data.status, log:data.log||[]
+  });
+  toast('🎫 Ticket '+number+' created — check Jobs › Tickets');
+}
+
+// ---------- TICKETS UI ----------
+function ticketStatusLabel(s){
+  if(s==='in_progress') return 'In progress';
+  if(s==='done') return 'Done';
+  return 'Open';
+}
+function ticketStatusTag(s){
+  if(s==='done') return 'tag-green';
+  if(s==='in_progress') return 'tag-amber';
+  return 'tag-blue';
+}
+
+function renderTicketList(){
+  const tickets=[...(cache.tickets||[])].reverse();
+  const open=tickets.filter(t=>t.status==='open').length;
+  const progress=tickets.filter(t=>t.status==='in_progress').length;
+  const done=tickets.filter(t=>t.status==='done').length;
+  document.getElementById('t-open').textContent=open;
+  document.getElementById('t-progress').textContent=progress;
+  document.getElementById('t-done').textContent=done;
+
+  const el=document.getElementById('ticket-list');
+  if(!tickets.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">🎫</div><h3>No tickets yet</h3><p>Mark a quote as "Accepted" in Clients to automatically create one.</p></div>';
+    return;
+  }
+  el.innerHTML=tickets.map(t=>{
+    const c=getCustomer(t.customerId);
+    const lastNote=t.log&&t.log.length?t.log[t.log.length-1].note:'';
+    return `<div class="cust-row" onclick="openTicketDetail('${t.id}')">
+      <div>
+        <div class="cust-name">${t.number} · ${escapeHtml(t.title)}</div>
+        <div class="cust-meta">${c?escapeHtml(c.name):'Unknown client'}${lastNote?' · '+escapeHtml(lastNote.slice(0,40))+(lastNote.length>40?'…':''):''}</div>
+      </div>
+      <span class="tag ${ticketStatusTag(t.status)}">${ticketStatusLabel(t.status)}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderTicketDetail(){
+  const t=(cache.tickets||[]).find(x=>x.id===currentTicketId);
+  if(!t){showPage('jobs');return;}
+  const c=getCustomer(t.customerId);
+  document.getElementById('td-number').textContent=t.number;
+  document.getElementById('td-title').textContent=t.title;
+  document.getElementById('td-client').textContent=c?c.name+(c.phone?' · '+c.phone:''):'Unknown client';
+  document.getElementById('td-status').value=t.status;
+
+  const logEl=document.getElementById('td-log');
+  const entries=[...(t.log||[])].reverse();
+  if(!entries.length){
+    logEl.innerHTML='<div class="empty" style="padding:14px;"><p>No notes yet.</p></div>';
+  } else {
+    logEl.innerHTML=entries.map(e=>`
+      <div class="doc-card" style="padding:10px 14px;">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:3px;">${formatDateTimeUK(e.timestamp)}</div>
+        <div style="font-size:14px;">${escapeHtml(e.note)}</div>
+      </div>`).join('');
+  }
+}
+
+async function updateTicketStatus(){
+  const t=(cache.tickets||[]).find(x=>x.id===currentTicketId);if(!t)return;
+  const newStatus=document.getElementById('td-status').value;
+  t.status=newStatus;
+  await sb.from('tickets').update({status:newStatus}).eq('id',t.id);
+  toast('Ticket status → '+ticketStatusLabel(newStatus));
+}
+
+async function addTicketNote(){
+  const t=(cache.tickets||[]).find(x=>x.id===currentTicketId);if(!t)return;
+  const noteText=document.getElementById('td-new-note').value.trim();
+  if(!noteText){alert('Write a note first');return;}
+  const entry={timestamp:new Date().toISOString(), note:noteText};
+  t.log=[...(t.log||[]), entry];
+  await sb.from('tickets').update({log:t.log}).eq('id',t.id);
+  document.getElementById('td-new-note').value='';
+  renderTicketDetail();
+  toast('Note added');
+}
+
+function viewLinkedQuote(){
+  const t=(cache.tickets||[]).find(x=>x.id===currentTicketId);if(!t||!t.documentId)return;
+  printDoc(t.documentId);
+}
+
+function formatDateTimeUK(iso){
+  if(!iso)return'—';
+  const d=new Date(iso);
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 }
 
 async function convertQuoteToInvoice(quoteId){
@@ -1494,21 +1716,22 @@ function buildDocInnerHtml(d){
       <td style="padding:9px 6px;border-bottom:1px solid #e5e5e5;text-align:right;">£${(it.qty*it.price).toFixed(2)}</td>
     </tr>`).join('');
 
-  const paymentBlock = d.type==='invoice' ? `
-    <div class="pay-box">
-      <h4>How to pay</h4>
-      <div class="pay-grid">
+  const cashCol = d.paymentMethod==='cash' ? `
         <div class="pay-col">
           <div class="pay-label">💷 Cash</div>
-          <div class="pay-line">${MY_BUSINESS.cashDiscountPct}% discount applied${d.paymentMethod==='cash'?' (already applied below)':''}</div>
-        </div>
+          <div class="pay-line">${MY_BUSINESS.cashDiscountPct}% discount applied (already reflected below)</div>
+        </div>` : '';
+  const bankCol = `
         <div class="pay-col">
           <div class="pay-label">🏦 Bank transfer</div>
           <div class="pay-bank-row"><span>Account name</span><strong>${MY_BUSINESS.bankName}</strong></div>
           <div class="pay-bank-row"><span>Sort code</span><strong>${MY_BUSINESS.sortCode}</strong></div>
           <div class="pay-bank-row"><span>Account no.</span><strong>${MY_BUSINESS.accountNumber}</strong></div>
-        </div>
-      </div>
+        </div>`;
+  const paymentBlock = d.type==='invoice' ? `
+    <div class="pay-box">
+      <h4>How to pay</h4>
+      <div class="pay-grid" style="${cashCol?'':'grid-template-columns:1fr;max-width:340px;'}">${cashCol}${bankCol}</div>
     </div>` : '';
 
   return `
