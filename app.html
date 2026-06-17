@@ -353,15 +353,24 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
       <div style="font-size:18px;font-weight:700;" id="td-title">Job title</div>
       <div style="font-size:12px;color:var(--text2);margin-top:2px;" id="td-client"></div>
     </div>
+    <span class="tag" id="td-overdue-tag" style="display:none;">overdue</span>
   </div>
 
-  <div class="form-group" style="margin-top:10px;">
-    <label class="form-label">Status</label>
-    <select class="form-input" id="td-status" onchange="updateTicketStatus()">
-      <option value="open">Open</option>
-      <option value="in_progress">In progress</option>
-      <option value="done">Done</option>
-    </select>
+  <div id="td-invoice-card" style="display:none;"></div>
+
+  <div class="form-row" style="margin-top:10px;">
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select class="form-input" id="td-status" onchange="updateTicketStatus()">
+        <option value="open">Open</option>
+        <option value="in_progress">In progress</option>
+        <option value="done">Done</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Target completion date</label>
+      <input class="form-input" id="td-target-date" type="date" onchange="updateTicketTargetDate()">
+    </div>
   </div>
 
   <div class="sec" style="margin-top:18px;">Notes &amp; updates</div>
@@ -701,7 +710,7 @@ async function loadAllData() {
 
   cache.tickets = (ticketRows || []).map(t => ({
     id: t.id, number: t.ticket_number, customerId: t.customer_id, documentId: t.document_id,
-    title: t.title, status: t.status, log: t.log || []
+    title: t.title, status: t.status, log: t.log || [], targetDate: t.target_date
   }));
 }
 
@@ -1509,6 +1518,33 @@ async function setDocStatus(id, newStatus){
   if(d.type==='quote' && newStatus==='accepted' && !wasAccepted){
     await createTicketFromQuote(d);
   }
+
+  if(d.type==='invoice' && newStatus==='paid'){
+    await autoCompleteTicketForInvoice(d);
+  }
+}
+
+function findTicketForInvoice(invoiceDoc){
+  // A ticket links to the quote that was accepted. If this invoice was converted
+  // from that quote, the quote's id is what the ticket's documentId points to —
+  // so first check direct match, then check via the originating quote.
+  let ticket=(cache.tickets||[]).find(t=>t.documentId===invoiceDoc.id);
+  if(ticket) return ticket;
+  const originQuote=(cache.documents||[]).find(q=>q.type==='quote' && q.convertedToInvoiceId===invoiceDoc.id);
+  if(originQuote){
+    ticket=(cache.tickets||[]).find(t=>t.documentId===originQuote.id);
+  }
+  return ticket;
+}
+
+async function autoCompleteTicketForInvoice(invoiceDoc){
+  const ticket=findTicketForInvoice(invoiceDoc);
+  if(!ticket || ticket.status==='done') return;
+  ticket.status='done';
+  ticket.log=[...(ticket.log||[]), {timestamp:new Date().toISOString(), note:'Auto-completed — invoice '+invoiceDoc.number+' marked as paid.'}];
+  await sb.from('tickets').update({status:'done', log:ticket.log}).eq('id',ticket.id);
+  toast('🎫 Ticket '+ticket.number+' marked done — invoice paid');
+  if(document.getElementById('page-ticket-detail').classList.contains('active') && currentTicketId===ticket.id) renderTicketDetail();
 }
 
 function genTicketNumber(){
@@ -1551,6 +1587,16 @@ function ticketStatusTag(s){
   return 'tag-blue';
 }
 
+function isTicketStale(t){
+  if(t.status==='done') return false;
+  const entries=t.log||[];
+  if(!entries.length) return false;
+  const lastTimestamp=entries[entries.length-1].timestamp;
+  const last=new Date(lastTimestamp);
+  const daysSince=(Date.now()-last.getTime())/(1000*60*60*24);
+  return daysSince>=14;
+}
+
 function renderTicketList(){
   const tickets=[...(cache.tickets||[])].reverse();
   const open=tickets.filter(t=>t.status==='open').length;
@@ -1565,17 +1611,46 @@ function renderTicketList(){
     el.innerHTML='<div class="empty"><div class="empty-icon">🎫</div><h3>No tickets yet</h3><p>Mark a quote as "Accepted" in Clients to automatically create one.</p></div>';
     return;
   }
-  el.innerHTML=tickets.map(t=>{
+
+  const needsAttention=tickets.filter(t=>isTicketOverdue(t)||isTicketStale(t));
+  const banner = needsAttention.length ? `
+    <div class="doc-card" style="background:#3a2020;border-color:#5a3030;margin-bottom:14px;">
+      <div style="font-weight:600;font-size:13px;color:#ff9b9b;margin-bottom:4px;">⚠️ ${needsAttention.length} ticket${needsAttention.length>1?'s':''} need${needsAttention.length>1?'':'s'} attention</div>
+      <div style="font-size:12px;color:var(--text2);">${needsAttention.map(t=>t.number).join(', ')} — overdue or no updates in 14+ days</div>
+    </div>` : '';
+
+  el.innerHTML=banner+tickets.map(t=>{
     const c=getCustomer(t.customerId);
     const lastNote=t.log&&t.log.length?t.log[t.log.length-1].note:'';
+    const overdue=isTicketOverdue(t);
+    const stale=isTicketStale(t);
+    const tag = overdue ? `<span class="tag tag-red">overdue</span>` : stale ? `<span class="tag tag-amber">stale</span>` : `<span class="tag ${ticketStatusTag(t.status)}">${ticketStatusLabel(t.status)}</span>`;
     return `<div class="cust-row" onclick="openTicketDetail('${t.id}')">
       <div>
         <div class="cust-name">${t.number} · ${escapeHtml(t.title)}</div>
         <div class="cust-meta">${c?escapeHtml(c.name):'Unknown client'}${lastNote?' · '+escapeHtml(lastNote.slice(0,40))+(lastNote.length>40?'…':''):''}</div>
       </div>
-      <span class="tag ${ticketStatusTag(t.status)}">${ticketStatusLabel(t.status)}</span>
+      ${tag}
     </div>`;
   }).join('');
+}
+
+function isTicketOverdue(t){
+  if(t.status==='done') return false;
+  if(!t.targetDate) return false;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const target=new Date(t.targetDate+'T00:00:00');
+  return target<today;
+}
+
+function findLinkedInvoice(t){
+  // If the ticket's documentId is itself an invoice, use it. Otherwise, it's a quote —
+  // check if that quote was converted to an invoice.
+  const linked=(cache.documents||[]).find(d=>d.id===t.documentId);
+  if(!linked) return null;
+  if(linked.type==='invoice') return linked;
+  if(linked.convertedToInvoiceId) return (cache.documents||[]).find(d=>d.id===linked.convertedToInvoiceId) || null;
+  return null;
 }
 
 function renderTicketDetail(){
@@ -1586,6 +1661,37 @@ function renderTicketDetail(){
   document.getElementById('td-title').textContent=t.title;
   document.getElementById('td-client').textContent=c?c.name+(c.phone?' · '+c.phone:''):'Unknown client';
   document.getElementById('td-status').value=t.status;
+  document.getElementById('td-target-date').value=t.targetDate||'';
+
+  const overdueTag=document.getElementById('td-overdue-tag');
+  if(isTicketOverdue(t)){
+    overdueTag.style.display='';
+    overdueTag.className='tag tag-red';
+    overdueTag.textContent='overdue';
+  } else {
+    overdueTag.style.display='none';
+  }
+
+  const invoiceCardEl=document.getElementById('td-invoice-card');
+  const linkedInvoice=findLinkedInvoice(t);
+  if(linkedInvoice){
+    const total=docTotal(linkedInvoice);
+    const tag=linkedInvoice.status==='paid'?'tag-green':isOverdue(linkedInvoice)?'tag-red':'tag-amber';
+    invoiceCardEl.style.display='';
+    invoiceCardEl.innerHTML=`
+      <div class="doc-card" style="margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div class="doc-num">Linked invoice</div>
+            <div class="doc-client">${linkedInvoice.number} — £${total.toFixed(2)}</div>
+          </div>
+          <span class="tag ${tag}">${linkedInvoice.status}</span>
+        </div>
+      </div>`;
+  } else {
+    invoiceCardEl.style.display='none';
+    invoiceCardEl.innerHTML='';
+  }
 
   const logEl=document.getElementById('td-log');
   const entries=[...(t.log||[])].reverse();
@@ -1605,7 +1711,17 @@ async function updateTicketStatus(){
   const newStatus=document.getElementById('td-status').value;
   t.status=newStatus;
   await sb.from('tickets').update({status:newStatus}).eq('id',t.id);
+  renderTicketDetail();
   toast('Ticket status → '+ticketStatusLabel(newStatus));
+}
+
+async function updateTicketTargetDate(){
+  const t=(cache.tickets||[]).find(x=>x.id===currentTicketId);if(!t)return;
+  const newDate=document.getElementById('td-target-date').value||null;
+  t.targetDate=newDate;
+  await sb.from('tickets').update({target_date:newDate}).eq('id',t.id);
+  renderTicketDetail();
+  toast(newDate?'Target date set':'Target date cleared');
 }
 
 async function addTicketNote(){
