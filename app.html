@@ -549,6 +549,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
       <select class="form-input" id="dc-payment" onchange="updateDocTotal()">
         <option value="cash">Cash (5% discount applied)</option>
         <option value="transfer">Bank transfer (full price)</option>
+        <option value="none">Card / other — no discount</option>
       </select>
     </div>
 
@@ -986,7 +987,7 @@ const MY_BUSINESS = {
   email: "abdulshikdarit@gmail.com",
   phone: "07356 287590",
   bankName: "MAWSF LTD",
-  sortCode: "04-0003",
+  sortCode: "04-00-03",
   accountNumber: "50143609",
   cashDiscountPct: 5
 };
@@ -1219,7 +1220,7 @@ function docCardHtml(d){
       <span class="tag ${statusTag}">${statusLabel}</span>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
-      <div class="doc-amount">£${total.toFixed(2)}<span style="font-size:11px;color:var(--text2);font-weight:400;"> (${d.paymentMethod==='cash'?'cash':'transfer'})</span></div>
+      <div class="doc-amount">£${total.toFixed(2)}<span style="font-size:11px;color:var(--text2);font-weight:400;"> (${paymentMethodLabel(d.paymentMethod)})</span></div>
       ${statusSelect}
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
@@ -1231,6 +1232,12 @@ function docCardHtml(d){
     </div>
     ${d.convertedToInvoiceId?`<div style="font-size:11px;color:var(--text2);margin-top:6px;">✓ Converted to invoice</div>`:''}
   </div>`;
+}
+
+function paymentMethodLabel(method){
+  if(method==='cash') return 'cash';
+  if(method==='none') return 'card / other';
+  return 'bank transfer';
 }
 
 function docTotal(d){
@@ -1489,17 +1496,17 @@ function buildDocInnerHtml(d){
 
   const paymentBlock = d.type==='invoice' ? `
     <div class="pay-box">
-      <h4>Payment details</h4>
+      <h4>How to pay</h4>
       <div class="pay-grid">
-        <div>
-          <div class="pay-label">Preferred: Cash</div>
-          <div class="pay-line">${MY_BUSINESS.cashDiscountPct}% discount applied for cash payment</div>
+        <div class="pay-col">
+          <div class="pay-label">💷 Cash</div>
+          <div class="pay-line">${MY_BUSINESS.cashDiscountPct}% discount applied${d.paymentMethod==='cash'?' (already applied below)':''}</div>
         </div>
-        <div>
-          <div class="pay-label">Bank transfer</div>
-          <div class="pay-line">${MY_BUSINESS.bankName}</div>
-          <div class="pay-line">Sort code: ${MY_BUSINESS.sortCode}</div>
-          <div class="pay-line">Account: ${MY_BUSINESS.accountNumber}</div>
+        <div class="pay-col">
+          <div class="pay-label">🏦 Bank transfer</div>
+          <div class="pay-bank-row"><span>Account name</span><strong>${MY_BUSINESS.bankName}</strong></div>
+          <div class="pay-bank-row"><span>Sort code</span><strong>${MY_BUSINESS.sortCode}</strong></div>
+          <div class="pay-bank-row"><span>Account no.</span><strong>${MY_BUSINESS.accountNumber}</strong></div>
         </div>
       </div>
     </div>` : '';
@@ -1536,7 +1543,7 @@ function buildDocInnerHtml(d){
     <div class="total-row"><div class="total-box">
       <div class="line"><span>Subtotal</span><span>£${subtotal.toFixed(2)}</span></div>
       ${discountAmt>0.001?`<div class="line"><span>Cash discount (${MY_BUSINESS.cashDiscountPct}%)</span><span>−£${discountAmt.toFixed(2)}</span></div>`:''}
-      <div class="grand"><span>Total${d.paymentMethod==='cash'?' (cash)':' (bank transfer)'}</span><span>£${total.toFixed(2)}</span></div>
+      <div class="grand"><span>Total (${paymentMethodLabel(d.paymentMethod)})</span><span>£${total.toFixed(2)}</span></div>
     </div></div>
     ${paymentBlock}
     ${d.notes?`<div class="notes">${escapeHtml(d.notes).replace(/\n/g,'<br>')}</div>`:''}
@@ -1544,7 +1551,7 @@ function buildDocInnerHtml(d){
 }
 
 const DOC_PRINT_STYLES = `
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a1a;margin:0;padding:40px;background:#fff;}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a1a;margin:0;padding:48px;background:#fff;}
     .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #1d5a96;padding-bottom:20px;margin-bottom:28px;}
     .logo-img{height:54px;display:block;}
     .brand-sub{font-size:12px;color:#666;margin-top:6px;}
@@ -1560,17 +1567,21 @@ const DOC_PRINT_STYLES = `
     .total-box{width:260px;}
     .total-box .line{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:#555;}
     .total-box .grand{display:flex;justify-content:space-between;font-size:20px;font-weight:800;border-top:2px solid #0d0d0d;padding-top:10px;margin-top:6px;color:#0d0d0d;}
-    .pay-box{margin-top:28px;background:#f4f8fc;border:1px solid #d6e4f0;border-radius:10px;padding:16px 18px;}
-    .pay-box h4{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#1d5a96;margin:0 0 10px;}
-    .pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
-    .pay-label{font-size:13px;font-weight:700;color:#0d0d0d;margin-bottom:3px;}
+    .pay-box{margin-top:28px;background:#f4f8fc;border:1px solid #d6e4f0;border-radius:10px;padding:18px 20px;}
+    .pay-box h4{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#1d5a96;margin:0 0 14px;}
+    .pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+    .pay-col{padding-right:8px;}
+    .pay-label{font-size:14px;font-weight:700;color:#0d0d0d;margin-bottom:8px;}
     .pay-line{font-size:13px;color:#444;line-height:1.5;}
+    .pay-bank-row{display:flex;justify-content:space-between;font-size:13px;color:#444;padding:5px 0;border-bottom:1px solid #e2ecf5;}
+    .pay-bank-row:last-child{border-bottom:none;}
+    .pay-bank-row span{color:#888;}
+    .pay-bank-row strong{color:#0d0d0d;letter-spacing:.02em;}
     .notes{margin-top:20px;font-size:13px;color:#444;background:#f7f7f7;padding:14px 16px;border-radius:8px;}
     .job-summary{margin-bottom:20px;font-size:14px;color:#1a1a1a;background:#eef5fb;border-left:4px solid #1d5a96;padding:10px 14px;border-radius:6px;}
     .job-summary strong{color:#1d5a96;}
     .footer{margin-top:36px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999;text-align:center;}
-    .contact-line{font-size:11px;color:#888;margin-top:4px;}
-    @media print{ body{padding:0;} }`;
+    .contact-line{font-size:11px;color:#888;margin-top:4px;}`;
 
 function printDoc(id){
   const d=cache.documents.find(x=>x.id===id);if(!d)return;
@@ -1634,7 +1645,7 @@ async function shareDoc(id){
   const typeLabel = d.type==='quote' ? 'Quote' : 'Invoice';
   const fileName = `${d.number}_${clientName}`.replace(/[^a-zA-Z0-9_-]/g,'_') + '.pdf';
   const text = `${typeLabel} ${d.number} for ${clientName}` +
-    `${d.summary?' — '+d.summary:''} — Total £${total.toFixed(2)} (${d.paymentMethod==='cash'?'cash':'bank transfer'})`;
+    `${d.summary?' — '+d.summary:''} — Total £${total.toFixed(2)} (${paymentMethodLabel(d.paymentMethod)})`;
 
   toast('Preparing PDF…');
   let blob;
@@ -1760,7 +1771,7 @@ function exportToExcel(){
       'Address': c?c.address:d.address,
       'Job': d.summary||'',
       'Status': isOverdue(d)?'overdue':d.status,
-      'Payment method': d.paymentMethod==='cash'?'Cash':'Bank transfer',
+      'Payment method': d.paymentMethod==='cash'?'Cash':d.paymentMethod==='none'?'Card / other':'Bank transfer',
       'Subtotal (£)': docSubtotal(d).toFixed(2),
       'Total after discount (£)': docTotal(d).toFixed(2),
       'Issue date': d.issueDate||'',
