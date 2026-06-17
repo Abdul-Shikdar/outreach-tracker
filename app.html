@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#0d0d0d">
 <link rel="manifest" href="manifest.json">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root {
   --bg:#0d0d0d; --bg2:#161616; --bg3:#1e1e1e; --bg4:#252525;
@@ -327,10 +328,16 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
     <button class="btn btn-primary btn-sm" onclick="openCustomerModal()">+ New client</button>
   </div>
 
-  <div class="stats3" style="margin-bottom:14px;">
+  <div class="stats4" style="margin-bottom:14px;">
     <div class="stat"><div class="stat-n" style="color:var(--amber)" id="q-open-quotes">0</div><div class="stat-l">Open quotes</div></div>
-    <div class="stat"><div class="stat-n" style="color:var(--blue)" id="q-unpaid">£0</div><div class="stat-l">Unpaid invoices</div></div>
-    <div class="stat"><div class="stat-n" style="color:var(--green)" id="q-paid-total">£0</div><div class="stat-l">Invoiced &amp; paid</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--blue)" id="q-unpaid">£0</div><div class="stat-l">Unpaid</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--red)" id="q-overdue">£0</div><div class="stat-l">Overdue</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--green)" id="q-paid-total">£0</div><div class="stat-l">Paid</div></div>
+  </div>
+
+  <div style="display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap;">
+    <button class="btn btn-sm" onclick="showPage('reports')">📊 Reports &amp; totals</button>
+    <button class="btn btn-sm" onclick="exportToExcel()">📥 Export to Excel</button>
   </div>
 
   <input class="form-input" id="cust-search" placeholder="Search clients..." style="margin-bottom:12px;" oninput="renderCustomerList()">
@@ -338,15 +345,40 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
   <div id="cust-list"></div>
 
   <div class="sec" style="margin-top:24px;">All quotes &amp; invoices</div>
+  <input class="form-input" id="doc-search" placeholder="Search by number, name, address, job..." style="margin-bottom:12px;" oninput="renderQuotes()">
   <div style="display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap;">
     <button class="btn btn-sm doc-filter active" data-f="all" onclick="setDocFilter('all',this)">All</button>
     <button class="btn btn-sm doc-filter" data-f="quote" onclick="setDocFilter('quote',this)">Quotes</button>
     <button class="btn btn-sm doc-filter" data-f="invoice" onclick="setDocFilter('invoice',this)">Invoices</button>
+    <button class="btn btn-sm doc-filter" data-f="overdue" onclick="setDocFilter('overdue',this)">Overdue</button>
   </div>
   <div id="q-list"></div>
 </div>
 
+<!-- REPORTS / TOTALS -->
+<div class="page" id="page-reports">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+    <button class="btn btn-sm" onclick="showPage('quotes')">← Back</button>
+  </div>
+  <div style="font-size:16px;font-weight:700;margin-bottom:14px;">Reports &amp; totals</div>
+
+  <div class="stats3" style="margin-bottom:18px;">
+    <div class="stat"><div class="stat-n" style="color:var(--blue)" id="rep-total-invoiced">£0</div><div class="stat-l">Total invoiced</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--green)" id="rep-total-paid">£0</div><div class="stat-l">Total paid</div></div>
+    <div class="stat"><div class="stat-n" style="color:var(--red)" id="rep-total-overdue">£0</div><div class="stat-l">Overdue</div></div>
+  </div>
+
+  <div class="sec">By year</div>
+  <div id="rep-yearly"></div>
+
+  <div class="sec" style="margin-top:18px;">By month (this year)</div>
+  <div id="rep-monthly"></div>
+
+  <button class="btn btn-primary btn-block" style="margin-top:20px;" onclick="exportToExcel()">📥 Export full report to Excel</button>
+</div>
+
 <!-- CLIENT DETAIL -->
+
 <div class="page" id="page-client-detail">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
     <button class="btn btn-sm" onclick="showPage('quotes')">← Back</button>
@@ -716,6 +748,7 @@ function showPage(name){
   if(name==='post')renderPost();
   if(name==='jobs')renderJobs();
   if(name==='quotes'){renderCustomerList();renderQuotes();}
+  if(name==='reports')renderReports();
   if(name==='history')renderHistory();
 }
 
@@ -1113,30 +1146,56 @@ function renderClientDetail(){
 }
 
 // ---------- ALL DOCS LIST (on Clients page) ----------
+function isOverdue(d){
+  if(d.type!=='invoice') return false;
+  if(d.status==='paid'||d.status==='declined') return false;
+  if(!d.dueDate) return false;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const due=new Date(d.dueDate+'T00:00:00');
+  return due<today;
+}
+
 function renderQuotes(){
   const docs=cache.documents||[];
   const quotes=docs.filter(d=>d.type==='quote');
   const invoices=docs.filter(d=>d.type==='invoice');
   const openQuotes=quotes.filter(d=>d.status==='draft'||d.status==='sent').length;
+  const overdueDocs=invoices.filter(isOverdue);
+  const overdueTotal=overdueDocs.reduce((s,d)=>s+docTotal(d),0);
   const unpaidTotal=invoices.filter(d=>d.status!=='paid').reduce((s,d)=>s+docTotal(d),0);
   const paidTotal=invoices.filter(d=>d.status==='paid').reduce((s,d)=>s+docTotal(d),0);
   document.getElementById('q-open-quotes').textContent=openQuotes;
   document.getElementById('q-unpaid').textContent='£'+unpaidTotal.toFixed(2);
+  document.getElementById('q-overdue').textContent='£'+overdueTotal.toFixed(2);
   document.getElementById('q-paid-total').textContent='£'+paidTotal.toFixed(2);
 
   let list=[...docs].reverse();
-  if(docFilter!=='all') list=list.filter(d=>d.type===docFilter);
+  if(docFilter==='overdue') list=list.filter(isOverdue);
+  else if(docFilter!=='all') list=list.filter(d=>d.type===docFilter);
+
+  const search=(document.getElementById('doc-search')?.value||'').toLowerCase().trim();
+  if(search){
+    list=list.filter(d=>{
+      const c=getCustomer(d.customerId);
+      const haystack=[d.number,c?c.name:d.client,c?c.phone:d.contact,c?c.address:d.address,d.summary]
+        .filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(search);
+    });
+  }
 
   const el=document.getElementById('q-list');
-  if(!list.length){el.innerHTML='<div class="empty"><div class="empty-icon">🧾</div><h3>No quotes or invoices yet</h3><p>Open a client and tap "+ New quote" to create one.</p></div>';return;}
+  if(!list.length){el.innerHTML='<div class="empty"><div class="empty-icon">🧾</div><h3>No matches</h3><p>Try a different search, or open a client and tap "+ New quote".</p></div>';return;}
   el.innerHTML=list.map(d=>docCardHtml(d)).join('');
 }
 
 function docCardHtml(d){
   const total=docTotal(d);
-  const statusTag = d.status==='paid'||d.status==='accepted' ? 'tag-green'
-    : d.status==='declined'||d.status==='overdue' ? 'tag-red'
+  const overdue=isOverdue(d);
+  const statusTag = overdue ? 'tag-red'
+    : d.status==='paid'||d.status==='accepted' ? 'tag-green'
+    : d.status==='declined' ? 'tag-red'
     : d.status==='sent' ? 'tag-amber' : 'tag-blue';
+  const statusLabel = overdue ? 'overdue' : d.status;
   const typeLabel = d.type==='quote' ? 'Quote' : 'Invoice';
   const c=getCustomer(d.customerId);
   const clientName = c ? c.name : d.client;
@@ -1148,12 +1207,13 @@ function docCardHtml(d){
         <div class="doc-client">${escapeHtml(clientName)}</div>
         ${d.summary?`<div style="font-size:12px;color:var(--text2);margin-top:2px;">${escapeHtml(d.summary)}</div>`:''}
       </div>
-      <span class="tag ${statusTag}">${d.status}</span>
+      <span class="tag ${statusTag}">${statusLabel}</span>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
       <div class="doc-amount">£${total.toFixed(2)}<span style="font-size:11px;color:var(--text2);font-weight:400;"> (${d.paymentMethod==='cash'?'cash':'transfer'})</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <button class="btn btn-sm" onclick="printDoc('${d.id}')">🖨 Print/PDF</button>
+        <button class="btn btn-sm" onclick="shareDoc('${d.id}')">📤 Share</button>
         <button class="btn btn-sm" onclick="cycleDocStatus('${d.id}')">Status ↻</button>
         ${d.type==='quote'&&!d.convertedToInvoiceId?`<button class="btn btn-sm btn-primary" onclick="convertQuoteToInvoice('${d.id}')">→ Invoice</button>`:''}
         <button class="btn btn-sm" onclick="editDoc('${d.id}')">Edit</button>
@@ -1509,6 +1569,154 @@ function printDoc(id){
   w.document.write(html);
   w.document.close();
   setTimeout(()=>w.print(),300);
+}
+
+// ---------- SHARE (native share sheet — WhatsApp, Mail, Messages, etc.) ----------
+async function shareDoc(id){
+  const d=cache.documents.find(x=>x.id===id);if(!d)return;
+  const c=getCustomer(d.customerId);
+  const clientName = c ? c.name : d.client;
+  const total=docTotal(d);
+  const typeLabel = d.type==='quote' ? 'Quote' : 'Invoice';
+  const text = `${typeLabel} ${d.number} for ${clientName}\n` +
+    `${d.summary?d.summary+'\n':''}` +
+    `Total: £${total.toFixed(2)} (${d.paymentMethod==='cash'?'cash':'bank transfer'})\n` +
+    `From ${MY_BUSINESS.name} — ${MY_BUSINESS.phone}`;
+
+  if(navigator.share){
+    try{
+      await navigator.share({ title: `${typeLabel} ${d.number}`, text });
+      return;
+    }catch(e){
+      // user cancelled or share failed — fall through to clipboard fallback below
+      if(e && e.name === 'AbortError') return;
+    }
+  }
+  // Fallback for browsers without native share (e.g. some desktop browsers)
+  try{
+    await navigator.clipboard.writeText(text);
+    toast('Sharing not supported here — copied details to clipboard instead');
+  }catch(e){
+    toast('Could not share — try the Print/PDF button instead', 'var(--red)');
+  }
+}
+
+// ---------- REPORTS & TOTALS ----------
+function renderReports(){
+  const invoices=(cache.documents||[]).filter(d=>d.type==='invoice');
+  const totalInvoiced=invoices.reduce((s,d)=>s+docTotal(d),0);
+  const totalPaid=invoices.filter(d=>d.status==='paid').reduce((s,d)=>s+docTotal(d),0);
+  const totalOverdue=invoices.filter(isOverdue).reduce((s,d)=>s+docTotal(d),0);
+  document.getElementById('rep-total-invoiced').textContent='£'+totalInvoiced.toFixed(2);
+  document.getElementById('rep-total-paid').textContent='£'+totalPaid.toFixed(2);
+  document.getElementById('rep-total-overdue').textContent='£'+totalOverdue.toFixed(2);
+
+  // Group by year
+  const byYear={};
+  invoices.forEach(d=>{
+    const year=(d.issueDate||'').slice(0,4)||'Unknown';
+    if(!byYear[year]) byYear[year]={invoiced:0,paid:0,count:0};
+    byYear[year].invoiced+=docTotal(d);
+    if(d.status==='paid') byYear[year].paid+=docTotal(d);
+    byYear[year].count++;
+  });
+  const years=Object.keys(byYear).sort().reverse();
+  const yearEl=document.getElementById('rep-yearly');
+  if(!years.length){
+    yearEl.innerHTML='<div class="empty" style="padding:16px;"><p>No invoices yet.</p></div>';
+  } else {
+    yearEl.innerHTML=years.map(y=>`
+      <div class="doc-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-weight:600;">${y}</div>
+          <div style="font-size:12px;color:var(--text2);">${byYear[y].count} invoice${byYear[y].count>1?'s':''}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:14px;">
+          <span>Invoiced: £${byYear[y].invoiced.toFixed(2)}</span>
+          <span style="color:var(--green)">Paid: £${byYear[y].paid.toFixed(2)}</span>
+        </div>
+      </div>`).join('');
+  }
+
+  // Group by month for current year
+  const thisYear=new Date().getFullYear().toString();
+  const byMonth={};
+  invoices.filter(d=>(d.issueDate||'').slice(0,4)===thisYear).forEach(d=>{
+    const month=(d.issueDate||'').slice(0,7); // YYYY-MM
+    if(!byMonth[month]) byMonth[month]={invoiced:0,paid:0,count:0};
+    byMonth[month].invoiced+=docTotal(d);
+    if(d.status==='paid') byMonth[month].paid+=docTotal(d);
+    byMonth[month].count++;
+  });
+  const months=Object.keys(byMonth).sort().reverse();
+  const monthEl=document.getElementById('rep-monthly');
+  if(!months.length){
+    monthEl.innerHTML='<div class="empty" style="padding:16px;"><p>No invoices yet this year.</p></div>';
+  } else {
+    monthEl.innerHTML=months.map(m=>{
+      const label=new Date(m+'-01T00:00:00').toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+      return `
+      <div class="doc-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-weight:600;">${label}</div>
+          <div style="font-size:12px;color:var(--text2);">${byMonth[m].count} invoice${byMonth[m].count>1?'s':''}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:14px;">
+          <span>Invoiced: £${byMonth[m].invoiced.toFixed(2)}</span>
+          <span style="color:var(--green)">Paid: £${byMonth[m].paid.toFixed(2)}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ---------- EXCEL EXPORT ----------
+function exportToExcel(){
+  if(typeof XLSX === 'undefined'){
+    toast('Export library still loading — try again in a second', 'var(--red)');
+    return;
+  }
+  const docs=cache.documents||[];
+  const rows=docs.map(d=>{
+    const c=getCustomer(d.customerId);
+    return {
+      'Number': d.number,
+      'Type': d.type==='quote'?'Quote':'Invoice',
+      'Client': c?c.name:d.client,
+      'Phone': c?c.phone:'',
+      'Email': c?c.email:'',
+      'Address': c?c.address:d.address,
+      'Job': d.summary||'',
+      'Status': isOverdue(d)?'overdue':d.status,
+      'Payment method': d.paymentMethod==='cash'?'Cash':'Bank transfer',
+      'Subtotal (£)': docSubtotal(d).toFixed(2),
+      'Total after discount (£)': docTotal(d).toFixed(2),
+      'Issue date': d.issueDate||'',
+      'Due date': d.dueDate||'',
+      'Notes': d.notes||''
+    };
+  });
+
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:10},{wch:9},{wch:20},{wch:14},{wch:22},{wch:28},{wch:30},{wch:10},{wch:14},{wch:14},{wch:18},{wch:12},{wch:12},{wch:30}];
+  XLSX.utils.book_append_sheet(wb,ws,'Quotes & Invoices');
+
+  // Summary sheet
+  const invoices=docs.filter(d=>d.type==='invoice');
+  const summaryRows=[
+    {Metric:'Total invoiced', 'Amount (£)': invoices.reduce((s,d)=>s+docTotal(d),0).toFixed(2)},
+    {Metric:'Total paid', 'Amount (£)': invoices.filter(d=>d.status==='paid').reduce((s,d)=>s+docTotal(d),0).toFixed(2)},
+    {Metric:'Total unpaid', 'Amount (£)': invoices.filter(d=>d.status!=='paid').reduce((s,d)=>s+docTotal(d),0).toFixed(2)},
+    {Metric:'Total overdue', 'Amount (£)': invoices.filter(isOverdue).reduce((s,d)=>s+docTotal(d),0).toFixed(2)},
+  ];
+  const summaryWs=XLSX.utils.json_to_sheet(summaryRows);
+  summaryWs['!cols']=[{wch:20},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,summaryWs,'Summary');
+
+  const dateStr=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `AbdulsTechSolutions_Invoices_${dateStr}.xlsx`);
+  toast('Exported ✓ check your downloads');
 }
 
 function escapeHtml(s){
