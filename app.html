@@ -390,7 +390,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Phone</label>
+        <label class="form-label">Phone *</label>
         <input class="form-input" id="cu-phone" placeholder="07...">
       </div>
       <div class="form-group">
@@ -399,8 +399,8 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Address (optional, shown on invoices)</label>
-      <input class="form-input" id="cu-address" placeholder="For invoice header">
+      <label class="form-label">Address *</label>
+      <input class="form-input" id="cu-address" placeholder="Full address — shown on invoices">
     </div>
     <div class="form-group">
       <label class="form-label">Notes</label>
@@ -487,6 +487,11 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
         </div>
         <button class="btn btn-sm" onclick="openCustomerPicker()" id="dc-change-client-btn">Change</button>
       </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">What's this for? (job summary — shown at the top of the document)</label>
+      <input class="form-input" id="dc-summary" placeholder="e.g. Laptop screen replacement &amp; SSD upgrade">
     </div>
 
     <div class="form-row">
@@ -599,7 +604,7 @@ async function loadAllData() {
 
   cache.documents = (docRows || []).map(d => ({
     id: d.id, type: d.doc_type, number: d.doc_number, client: d.client_name,
-    contact: d.client_contact || '', address: d.client_address || '',
+    contact: d.client_contact || '', address: d.client_address || '', summary: d.summary || '',
     items: d.items || [], notes: d.notes || '', status: d.status,
     issueDate: d.issue_date, dueDate: d.due_date, paymentMethod: d.payment_method || 'cash',
     customerId: d.customer_id, linkedJobId: d.linked_job_id, convertedToInvoiceId: d.converted_to_invoice_id
@@ -1052,8 +1057,10 @@ async function saveCustomer(){
   const name=document.getElementById('cu-name').value.trim();
   if(!name){alert('Please enter a client name');return;}
   const phone=document.getElementById('cu-phone').value.trim();
+  if(!phone){alert('Please enter a phone number');return;}
   const email=document.getElementById('cu-email').value.trim();
   const address=document.getElementById('cu-address').value.trim();
+  if(!address){alert('Please enter an address — this is needed for invoices');return;}
   const notes=document.getElementById('cu-notes').value.trim();
 
   if(cuEditingId){
@@ -1139,6 +1146,7 @@ function docCardHtml(d){
       <div>
         <div class="doc-num">${d.number} · ${typeLabel}</div>
         <div class="doc-client">${escapeHtml(clientName)}</div>
+        ${d.summary?`<div style="font-size:12px;color:var(--text2);margin-top:2px;">${escapeHtml(d.summary)}</div>`:''}
       </div>
       <span class="tag ${statusTag}">${d.status}</span>
     </div>
@@ -1190,6 +1198,7 @@ function openDocModal(type, customerId){
   }
 
   document.getElementById('dc-notes').value='';
+  document.getElementById('dc-summary').value='';
   document.getElementById('dc-payment').value='cash';
   const today=new Date().toISOString().slice(0,10);
   document.getElementById('dc-issue').value=today;
@@ -1247,6 +1256,8 @@ function updateDocTotal(){
 
 async function saveDoc(){
   if(!dcSelectedCustomerId){alert('Please select a client first');openCustomerPicker();return;}
+  const summary=document.getElementById('dc-summary').value.trim();
+  if(!summary){alert('Please describe what this job is for');return;}
   const issueDate=document.getElementById('dc-issue').value;
   const dueDate=document.getElementById('dc-due').value;
   const notes=document.getElementById('dc-notes').value.trim();
@@ -1263,23 +1274,23 @@ async function saveDoc(){
     const existing=cache.documents.find(d=>d.id===dcEditingId);
     const {error}=await sb.from('documents').update({
       customer_id:dcSelectedCustomerId, client_name:clientName, client_contact:clientContact, client_address:clientAddress,
-      items, notes, issue_date:issueDate, due_date:dueDate||null, payment_method:paymentMethod
+      summary, items, notes, issue_date:issueDate, due_date:dueDate||null, payment_method:paymentMethod
     }).eq('id',dcEditingId);
     if(error){toast('Error: '+error.message,'var(--red)');return;}
-    Object.assign(existing,{customerId:dcSelectedCustomerId,client:clientName,contact:clientContact,address:clientAddress,items,notes,issueDate,dueDate,paymentMethod});
+    Object.assign(existing,{customerId:dcSelectedCustomerId,client:clientName,contact:clientContact,address:clientAddress,summary,items,notes,issueDate,dueDate,paymentMethod});
     toast('Updated ✓');
   } else {
     const type=document.getElementById('doc-modal-title').dataset.type;
     const number=genDocNumber(type);
     const {data,error}=await sb.from('documents').insert({
       doc_type:type, doc_number:number, customer_id:dcSelectedCustomerId, client_name:clientName,
-      client_contact:clientContact, client_address:clientAddress, items, notes, status:'draft',
+      client_contact:clientContact, client_address:clientAddress, summary, items, notes, status:'draft',
       issue_date:issueDate, due_date:dueDate||null, payment_method:paymentMethod
     }).select().single();
     if(error){toast('Error: '+error.message,'var(--red)');return;}
     cache.documents.push({
       id:data.id, type:data.doc_type, number:data.doc_number, customerId:data.customer_id, client:data.client_name,
-      contact:data.client_contact||'', address:data.client_address||'', items:data.items||[],
+      contact:data.client_contact||'', address:data.client_address||'', summary:data.summary||'', items:data.items||[],
       notes:data.notes||'', status:data.status, issueDate:data.issue_date, dueDate:data.due_date,
       paymentMethod:data.payment_method||'cash', linkedJobId:data.linked_job_id, convertedToInvoiceId:data.converted_to_invoice_id
     });
@@ -1302,6 +1313,7 @@ function editDoc(id){
   if(c) setDocClientDisplay(c);
   else { document.getElementById('dc-client-name').textContent=d.client||'Unknown client'; document.getElementById('dc-client-meta').textContent=''; }
   document.getElementById('dc-notes').value=d.notes;
+  document.getElementById('dc-summary').value=d.summary||'';
   document.getElementById('dc-issue').value=d.issueDate;
   document.getElementById('dc-due').value=d.dueDate||'';
   document.getElementById('dc-payment').value=d.paymentMethod||'cash';
@@ -1331,13 +1343,13 @@ async function convertQuoteToInvoice(quoteId){
   const due=new Date(); due.setDate(due.getDate()+14);
   const {data,error}=await sb.from('documents').insert({
     doc_type:'invoice', doc_number:number, customer_id:q.customerId, client_name:q.client, client_contact:q.contact,
-    client_address:q.address, items:q.items, notes:q.notes, status:'draft',
+    client_address:q.address, summary:q.summary||'', items:q.items, notes:q.notes, status:'draft',
     issue_date:today, due_date:due.toISOString().slice(0,10), payment_method:q.paymentMethod||'cash'
   }).select().single();
   if(error){toast('Error: '+error.message,'var(--red)');return;}
   cache.documents.push({
     id:data.id, type:'invoice', number:data.doc_number, customerId:data.customer_id, client:data.client_name,
-    contact:data.client_contact||'', address:data.client_address||'', items:data.items||[],
+    contact:data.client_contact||'', address:data.client_address||'', summary:data.summary||'', items:data.items||[],
     notes:data.notes||'', status:data.status, issueDate:data.issue_date, dueDate:data.due_date,
     paymentMethod:data.payment_method||'cash', linkedJobId:null, convertedToInvoiceId:null
   });
@@ -1399,7 +1411,7 @@ function printDoc(id){
   const total=docTotal(d);
   const discountAmt=subtotal-total;
   const typeLabel = d.type==='quote' ? 'QUOTE' : 'INVOICE';
-  const dueLabel = d.type==='quote' ? 'Valid until' : 'Due date';
+  const dueLabel = d.type==='quote' ? 'Valid until' : 'Payment due by';
   const rows=(d.items||[]).map(it=>`
     <tr>
       <td style="padding:9px 6px;border-bottom:1px solid #e5e5e5;">${escapeHtml(it.description)}</td>
@@ -1449,6 +1461,8 @@ function printDoc(id){
     .pay-label{font-size:13px;font-weight:700;color:#0d0d0d;margin-bottom:3px;}
     .pay-line{font-size:13px;color:#444;line-height:1.5;}
     .notes{margin-top:20px;font-size:13px;color:#444;background:#f7f7f7;padding:14px 16px;border-radius:8px;}
+    .job-summary{margin-bottom:20px;font-size:14px;color:#1a1a1a;background:#eef5fb;border-left:4px solid #1d5a96;padding:10px 14px;border-radius:6px;}
+    .job-summary strong{color:#1d5a96;}
     .footer{margin-top:36px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999;text-align:center;}
     .contact-line{font-size:11px;color:#888;margin-top:4px;}
     @media print{ body{padding:0;} }
@@ -1476,6 +1490,7 @@ function printDoc(id){
         <h4 style="margin-top:10px;">${dueLabel}</h4><div>${d.dueDate?formatDateUK(d.dueDate):'—'}</div>
       </div>
     </div>
+    ${d.summary?`<div class="job-summary"><strong>Job:</strong> ${escapeHtml(d.summary)}</div>`:''}
     <table>
       <thead><tr><th>Description</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
       <tbody>${rows}</tbody>
