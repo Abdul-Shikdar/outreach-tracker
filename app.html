@@ -9,6 +9,8 @@
 <link rel="manifest" href="manifest.json">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root {
   --bg:#0d0d0d; --bg2:#161616; --bg3:#1e1e1e; --bg4:#252525;
@@ -170,6 +172,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
 .doc-num{font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.03em;}
 .doc-client{font-size:14px;font-weight:600;color:var(--text);margin-top:1px;}
 .doc-amount{font-size:18px;font-weight:700;color:var(--text);}
+.status-select{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:7px 10px;font-size:13px;color:var(--text);font-family:inherit;}
 
 /* CUSTOMER LIST */
 .cust-row{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rs);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:8px;}
@@ -1199,6 +1202,12 @@ function docCardHtml(d){
   const typeLabel = d.type==='quote' ? 'Quote' : 'Invoice';
   const c=getCustomer(d.customerId);
   const clientName = c ? c.name : d.client;
+  const statusOptions = d.type==='quote'
+    ? ['draft','sent','accepted','declined']
+    : ['draft','sent','paid','overdue'];
+  const statusSelect = `<select class="status-select" onchange="setDocStatus('${d.id}', this.value)">
+    ${statusOptions.map(s=>`<option value="${s}" ${s===d.status?'selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join('')}
+  </select>`;
   return `
   <div class="doc-card">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
@@ -1211,14 +1220,14 @@ function docCardHtml(d){
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
       <div class="doc-amount">£${total.toFixed(2)}<span style="font-size:11px;color:var(--text2);font-weight:400;"> (${d.paymentMethod==='cash'?'cash':'transfer'})</span></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        <button class="btn btn-sm" onclick="printDoc('${d.id}')">🖨 Print/PDF</button>
-        <button class="btn btn-sm" onclick="shareDoc('${d.id}')">📤 Share</button>
-        <button class="btn btn-sm" onclick="cycleDocStatus('${d.id}')">Status ↻</button>
-        ${d.type==='quote'&&!d.convertedToInvoiceId?`<button class="btn btn-sm btn-primary" onclick="convertQuoteToInvoice('${d.id}')">→ Invoice</button>`:''}
-        <button class="btn btn-sm" onclick="editDoc('${d.id}')">Edit</button>
-        <button class="btn btn-sm" style="color:var(--red)" onclick="deleteDoc('${d.id}')">Delete</button>
-      </div>
+      ${statusSelect}
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+      <button class="btn btn-sm" onclick="printDoc('${d.id}')">🖨 Print/PDF</button>
+      <button class="btn btn-sm" onclick="shareDoc('${d.id}')">📤 Share</button>
+      ${d.type==='quote'&&!d.convertedToInvoiceId?`<button class="btn btn-sm btn-primary" onclick="convertQuoteToInvoice('${d.id}')">→ Invoice</button>`:''}
+      <button class="btn btn-sm" onclick="editDoc('${d.id}')">Edit</button>
+      <button class="btn btn-sm" style="color:var(--red)" onclick="deleteDoc('${d.id}')">Delete</button>
     </div>
     ${d.convertedToInvoiceId?`<div style="font-size:11px;color:var(--text2);margin-top:6px;">✓ Converted to invoice</div>`:''}
   </div>`;
@@ -1384,10 +1393,9 @@ function editDoc(id){
   document.getElementById('doc-modal').classList.add('open');
 }
 
-async function cycleDocStatus(id){
+async function setDocStatus(id, newStatus){
   const d=cache.documents.find(x=>x.id===id);if(!d)return;
-  const cycle = d.type==='quote' ? ['draft','sent','accepted','declined'] : ['draft','sent','paid','overdue'];
-  d.status=cycle[(cycle.indexOf(d.status)+1)%cycle.length];
+  d.status=newStatus;
   await sb.from('documents').update({status:d.status}).eq('id',id);
   renderQuotes();
   if(document.getElementById('page-client-detail').classList.contains('active')) renderClientDetail();
@@ -1460,8 +1468,7 @@ function selectCustomerForDoc(id){
 }
 
 // ---------- PRINT / PDF ----------
-function printDoc(id){
-  const d=cache.documents.find(x=>x.id===id);if(!d)return;
+function buildDocInnerHtml(d){
   const c=getCustomer(d.customerId);
   const clientName = c ? c.name : d.client;
   const clientContact = c ? [c.phone,c.email].filter(Boolean).join(' · ') : d.contact;
@@ -1497,36 +1504,7 @@ function printDoc(id){
       </div>
     </div>` : '';
 
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${d.number} — ${typeLabel}</title>
-  <style>
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a1a;margin:0;padding:40px;background:#fff;}
-    .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #1d5a96;padding-bottom:20px;margin-bottom:28px;}
-    .logo-img{height:54px;display:block;}
-    .brand-sub{font-size:12px;color:#666;margin-top:6px;}
-    .doctype{font-size:26px;font-weight:800;color:#0d0d0d;text-align:right;}
-    .docnum{font-size:13px;color:#666;text-align:right;margin-top:2px;}
-    .meta{display:flex;justify-content:space-between;margin-bottom:28px;gap:30px;}
-    .meta-block h4{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#999;margin:0 0 6px;}
-    .meta-block div{font-size:14px;line-height:1.5;}
-    table{width:100%;border-collapse:collapse;margin-bottom:14px;}
-    th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#999;padding:8px 6px;border-bottom:2px solid #0d0d0d;}
-    th:nth-child(2){text-align:center;} th:nth-child(3),th:nth-child(4){text-align:right;}
-    .total-row{display:flex;justify-content:flex-end;margin-top:6px;}
-    .total-box{width:260px;}
-    .total-box .line{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:#555;}
-    .total-box .grand{display:flex;justify-content:space-between;font-size:20px;font-weight:800;border-top:2px solid #0d0d0d;padding-top:10px;margin-top:6px;color:#0d0d0d;}
-    .pay-box{margin-top:28px;background:#f4f8fc;border:1px solid #d6e4f0;border-radius:10px;padding:16px 18px;}
-    .pay-box h4{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#1d5a96;margin:0 0 10px;}
-    .pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
-    .pay-label{font-size:13px;font-weight:700;color:#0d0d0d;margin-bottom:3px;}
-    .pay-line{font-size:13px;color:#444;line-height:1.5;}
-    .notes{margin-top:20px;font-size:13px;color:#444;background:#f7f7f7;padding:14px 16px;border-radius:8px;}
-    .job-summary{margin-bottom:20px;font-size:14px;color:#1a1a1a;background:#eef5fb;border-left:4px solid #1d5a96;padding:10px 14px;border-radius:6px;}
-    .job-summary strong{color:#1d5a96;}
-    .footer{margin-top:36px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999;text-align:center;}
-    .contact-line{font-size:11px;color:#888;margin-top:4px;}
-    @media print{ body{padding:0;} }
-  </style></head><body>
+  return `
     <div class="head">
       <div>
         <img class="logo-img" src="data:image/png;base64,${LOGO_B64}" alt="Abdul's Tech Solutions">
@@ -1562,13 +1540,89 @@ function printDoc(id){
     </div></div>
     ${paymentBlock}
     ${d.notes?`<div class="notes">${escapeHtml(d.notes).replace(/\n/g,'<br>')}</div>`:''}
-    <div class="footer">${MY_BUSINESS.name} · DBS Checked · No fix, no fee · Thank you for your business</div>
-  </body></html>`;
+    <div class="footer">${MY_BUSINESS.name} · DBS Checked · No fix, no fee · Thank you for your business</div>`;
+}
+
+const DOC_PRINT_STYLES = `
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1a1a1a;margin:0;padding:40px;background:#fff;}
+    .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid #1d5a96;padding-bottom:20px;margin-bottom:28px;}
+    .logo-img{height:54px;display:block;}
+    .brand-sub{font-size:12px;color:#666;margin-top:6px;}
+    .doctype{font-size:26px;font-weight:800;color:#0d0d0d;text-align:right;}
+    .docnum{font-size:13px;color:#666;text-align:right;margin-top:2px;}
+    .meta{display:flex;justify-content:space-between;margin-bottom:28px;gap:30px;}
+    .meta-block h4{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#999;margin:0 0 6px;}
+    .meta-block div{font-size:14px;line-height:1.5;}
+    table{width:100%;border-collapse:collapse;margin-bottom:14px;}
+    th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#999;padding:8px 6px;border-bottom:2px solid #0d0d0d;}
+    th:nth-child(2){text-align:center;} th:nth-child(3),th:nth-child(4){text-align:right;}
+    .total-row{display:flex;justify-content:flex-end;margin-top:6px;}
+    .total-box{width:260px;}
+    .total-box .line{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:#555;}
+    .total-box .grand{display:flex;justify-content:space-between;font-size:20px;font-weight:800;border-top:2px solid #0d0d0d;padding-top:10px;margin-top:6px;color:#0d0d0d;}
+    .pay-box{margin-top:28px;background:#f4f8fc;border:1px solid #d6e4f0;border-radius:10px;padding:16px 18px;}
+    .pay-box h4{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#1d5a96;margin:0 0 10px;}
+    .pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+    .pay-label{font-size:13px;font-weight:700;color:#0d0d0d;margin-bottom:3px;}
+    .pay-line{font-size:13px;color:#444;line-height:1.5;}
+    .notes{margin-top:20px;font-size:13px;color:#444;background:#f7f7f7;padding:14px 16px;border-radius:8px;}
+    .job-summary{margin-bottom:20px;font-size:14px;color:#1a1a1a;background:#eef5fb;border-left:4px solid #1d5a96;padding:10px 14px;border-radius:6px;}
+    .job-summary strong{color:#1d5a96;}
+    .footer{margin-top:36px;padding-top:16px;border-top:1px solid #ddd;font-size:11px;color:#999;text-align:center;}
+    .contact-line{font-size:11px;color:#888;margin-top:4px;}
+    @media print{ body{padding:0;} }`;
+
+function printDoc(id){
+  const d=cache.documents.find(x=>x.id===id);if(!d)return;
+  const typeLabel = d.type==='quote' ? 'QUOTE' : 'INVOICE';
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${d.number} — ${typeLabel}</title>
+  <style>${DOC_PRINT_STYLES}</style></head><body>${buildDocInnerHtml(d)}</body></html>`;
 
   const w=window.open('','_blank');
   w.document.write(html);
   w.document.close();
   setTimeout(()=>w.print(),300);
+}
+
+// Builds a real PDF Blob for the given document, for sharing or downloading.
+async function buildDocPdfBlob(d){
+  const container=document.createElement('div');
+  container.style.position='fixed';
+  container.style.left='-9999px';
+  container.style.top='0';
+  container.style.width='800px';
+  container.style.background='#fff';
+  const styleTag=document.createElement('style');
+  styleTag.textContent=DOC_PRINT_STYLES;
+  container.appendChild(styleTag);
+  const contentDiv=document.createElement('div');
+  contentDiv.innerHTML=buildDocInnerHtml(d);
+  container.appendChild(contentDiv);
+  document.body.appendChild(container);
+
+  try{
+    const canvas=await html2canvas(container, {scale:2, backgroundColor:'#ffffff'});
+    const imgData=canvas.toDataURL('image/jpeg', 0.92);
+    const { jsPDF } = window.jspdf;
+    const pdf=new jsPDF({unit:'pt', format:'a4'});
+    const pageWidth=pdf.internal.pageSize.getWidth();
+    const pageHeight=pdf.internal.pageSize.getHeight();
+    const imgWidth=pageWidth;
+    const imgHeight=canvas.height*(imgWidth/canvas.width);
+    let heightLeft=imgHeight;
+    let position=0;
+    pdf.addImage(imgData,'JPEG',0,position,imgWidth,imgHeight);
+    heightLeft-=pageHeight;
+    while(heightLeft>0){
+      position=heightLeft-imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData,'JPEG',0,position,imgWidth,imgHeight);
+      heightLeft-=pageHeight;
+    }
+    return pdf.output('blob');
+  } finally {
+    document.body.removeChild(container);
+  }
 }
 
 // ---------- SHARE (native share sheet — WhatsApp, Mail, Messages, etc.) ----------
@@ -1578,27 +1632,45 @@ async function shareDoc(id){
   const clientName = c ? c.name : d.client;
   const total=docTotal(d);
   const typeLabel = d.type==='quote' ? 'Quote' : 'Invoice';
-  const text = `${typeLabel} ${d.number} for ${clientName}\n` +
-    `${d.summary?d.summary+'\n':''}` +
-    `Total: £${total.toFixed(2)} (${d.paymentMethod==='cash'?'cash':'bank transfer'})\n` +
-    `From ${MY_BUSINESS.name} — ${MY_BUSINESS.phone}`;
+  const fileName = `${d.number}_${clientName}`.replace(/[^a-zA-Z0-9_-]/g,'_') + '.pdf';
+  const text = `${typeLabel} ${d.number} for ${clientName}` +
+    `${d.summary?' — '+d.summary:''} — Total £${total.toFixed(2)} (${d.paymentMethod==='cash'?'cash':'bank transfer'})`;
 
-  if(navigator.share){
+  toast('Preparing PDF…');
+  let blob;
+  try{
+    blob = await buildDocPdfBlob(d);
+  }catch(e){
+    toast('Could not generate the PDF — try Print/PDF instead', 'var(--red)');
+    return;
+  }
+
+  const file = new File([blob], fileName, { type: 'application/pdf' });
+
+  if(navigator.canShare && navigator.canShare({ files:[file] })){
     try{
-      await navigator.share({ title: `${typeLabel} ${d.number}`, text });
+      await navigator.share({ title: `${typeLabel} ${d.number}`, text, files:[file] });
       return;
     }catch(e){
-      // user cancelled or share failed — fall through to clipboard fallback below
+      if(e && e.name === 'AbortError') return; // user cancelled — no error needed
+      // fall through to download fallback below
+    }
+  } else if(navigator.share){
+    // Can share text/links but not files on this browser — share text and also trigger a download
+    try{
+      await navigator.share({ title: `${typeLabel} ${d.number}`, text });
+    }catch(e){
       if(e && e.name === 'AbortError') return;
     }
   }
-  // Fallback for browsers without native share (e.g. some desktop browsers)
-  try{
-    await navigator.clipboard.writeText(text);
-    toast('Sharing not supported here — copied details to clipboard instead');
-  }catch(e){
-    toast('Could not share — try the Print/PDF button instead', 'var(--red)');
-  }
+
+  // Fallback: download the PDF directly so it can be attached manually
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=fileName;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('PDF downloaded — attach it from your downloads to share');
 }
 
 // ---------- REPORTS & TOTALS ----------
