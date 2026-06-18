@@ -1622,22 +1622,13 @@ function updateDocTotal(){
   }
   document.getElementById('dc-total').textContent='£'+total.toFixed(2);
 
-  const partsCost=parseFloat(document.getElementById('dc-parts-cost').value)||0;
   const labour=parseFloat(document.getElementById('dc-labour').value)||0;
-  const mileage=parseFloat(document.getElementById('dc-mileage').value)||0;
-  const breakdownSum=partsCost+labour+mileage;
   const hint=document.getElementById('dc-breakdown-hint');
-  if(breakdownSum===0){
-    hint.textContent='';
+  if(labour>0){
+    hint.textContent=`Profit (labour): £${labour.toFixed(2)}`;
+    hint.style.color='var(--green)';
   } else {
-    const diff=total-breakdownSum;
-    if(Math.abs(diff)<0.01){
-      hint.textContent=`Profit (labour): £${labour.toFixed(2)}`;
-      hint.style.color='var(--green)';
-    } else {
-      hint.textContent=`Breakdown £${breakdownSum.toFixed(2)} doesn't match total £${total.toFixed(2)} (off by £${Math.abs(diff).toFixed(2)}) — profit will still be £${labour.toFixed(2)}`;
-      hint.style.color='var(--red)';
-    }
+    hint.textContent='';
   }
 }
 
@@ -2435,17 +2426,18 @@ async function buildDocPdfBlob(d){
     const pdf=new jsPDF({unit:'pt', format:'a4'});
     const pageWidth=pdf.internal.pageSize.getWidth();
     const pageHeight=pdf.internal.pageSize.getHeight();
-    const imgWidth=pageWidth;
+    const margin=24; // pt — keeps content off the page edges
+    const imgWidth=pageWidth-(margin*2);
     const imgHeight=canvas.height*(imgWidth/canvas.width);
     let heightLeft=imgHeight;
-    let position=0;
-    pdf.addImage(imgData,'JPEG',0,position,imgWidth,imgHeight);
-    heightLeft-=pageHeight;
+    let position=margin;
+    pdf.addImage(imgData,'JPEG',margin,position,imgWidth,imgHeight);
+    heightLeft-=(pageHeight-margin*2);
     while(heightLeft>0){
-      position=heightLeft-imgHeight;
+      position=margin-(imgHeight-heightLeft);
       pdf.addPage();
-      pdf.addImage(imgData,'JPEG',0,position,imgWidth,imgHeight);
-      heightLeft-=pageHeight;
+      pdf.addImage(imgData,'JPEG',margin,position,imgWidth,imgHeight);
+      heightLeft-=(pageHeight-margin*2);
     }
     return pdf.output('blob');
   } finally {
