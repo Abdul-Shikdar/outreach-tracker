@@ -408,7 +408,8 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
     </div>
     <div class="form-group">
       <label class="form-label">Device (optional)</label>
-      <input class="form-input" id="dv-device" placeholder="e.g. iPhone 12, Dell Latitude 5400...">
+      <input class="form-input" id="dv-device" list="dv-device-suggestions" placeholder="e.g. iPhone 12, Dell Latitude 5400..." autocomplete="off">
+      <datalist id="dv-device-suggestions"></datalist>
     </div>
     <div class="form-group">
       <label class="form-label">Fault / what was wrong</label>
@@ -422,7 +423,10 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
       <label class="form-label">Price charged (£)</label>
       <input class="form-input" id="dv-price" type="number" min="0" step="0.01" placeholder="0.00">
     </div>
-    <button class="btn btn-primary btn-block" onclick="saveDevice()">Save device</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <button class="btn" onclick="saveDevice(false)">Save</button>
+      <button class="btn btn-primary" onclick="saveDevice(true)" id="dv-save-another-btn">Save + add another</button>
+    </div>
   </div>
 </div>
 
@@ -1780,7 +1784,18 @@ async function updateTicketStatus(){
   renderTicketDetail();
 
   if(newStatus==='done' && !wasDone){
+    const devices=ticketDevices(t.id);
     const linkedInvoice=findLinkedInvoice(t);
+
+    if(devices.length && (!linkedInvoice || linkedInvoice.status!=='paid')){
+      const total=devices.reduce((s,dv)=>s+dv.price,0);
+      const verb=linkedInvoice?'update the existing invoice':'generate an invoice';
+      if(confirm(`This job has ${devices.length} device${devices.length>1?'s':''} logged, totalling £${total.toFixed(2)}. ${verb.charAt(0).toUpperCase()+verb.slice(1)} from the device list?`)){
+        await generateInvoiceFromDevices(t, devices, linkedInvoice);
+        return;
+      }
+    }
+
     if(linkedInvoice && linkedInvoice.status==='paid'){
       toast('💰 £'+docTotal(linkedInvoice).toFixed(2)+' earned on this job — ticket done', 'var(--green)');
     } else {
@@ -1789,6 +1804,48 @@ async function updateTicketStatus(){
   } else {
     toast('Ticket status → '+ticketStatusLabel(newStatus));
   }
+}
+
+async function generateInvoiceFromDevices(ticket, devices, existingInvoice){
+  const items=devices.map(dv=>({
+    description: `${dv.serial}${dv.deviceName?' ('+dv.deviceName+')':''}${dv.notes?' — '+dv.notes:''}`,
+    qty: 1, price: dv.price
+  }));
+  const summary=`Bulk job — ${devices.length} device${devices.length>1?'s':''} reimaged/repaired`;
+
+  if(existingInvoice){
+    const {error}=await sb.from('documents').update({ items, summary }).eq('id',existingInvoice.id);
+    if(error){toast('Error: '+error.message,'var(--red)');return;}
+    Object.assign(existingInvoice,{items,summary});
+    toast('🧾 Invoice '+existingInvoice.number+' updated from device list');
+    renderTicketDetail();
+    return;
+  }
+
+  // No invoice exists yet for this ticket — create one fresh, linked to the same customer.
+  const number=genDocNumber('invoice');
+  const today=new Date().toISOString().slice(0,10);
+  const due=new Date(); due.setDate(due.getDate()+14);
+  const c=getCustomer(ticket.customerId);
+  const {data,error}=await sb.from('documents').insert({
+    doc_type:'invoice', doc_number:number, customer_id:ticket.customerId,
+    client_name:c?c.name:'', client_contact:c?[c.phone,c.email].filter(Boolean).join(' / '):'',
+    client_address:c?c.address:'', summary, items, notes:'', status:'draft',
+    issue_date:today, due_date:due.toISOString().slice(0,10), payment_method:'cash'
+  }).select().single();
+  if(error){toast('Error: '+error.message,'var(--red)');return;}
+  const newDoc={
+    id:data.id, type:'invoice', number:data.doc_number, customerId:data.customer_id, client:data.client_name,
+    contact:data.client_contact||'', address:data.client_address||'', summary:data.summary||'', items:data.items||[],
+    notes:data.notes||'', status:data.status, issueDate:data.issue_date, dueDate:data.due_date,
+    paymentMethod:data.payment_method||'cash', linkedJobId:null, convertedToInvoiceId:null
+  };
+  cache.documents.push(newDoc);
+  // Link the ticket's documentId to this new invoice so future lookups (linked invoice card, etc.) find it.
+  ticket.documentId=newDoc.id;
+  await sb.from('tickets').update({document_id:newDoc.id}).eq('id',ticket.id);
+  toast('🧾 Invoice '+number+' generated from '+devices.length+' device'+(devices.length>1?'s':''));
+  renderTicketDetail();
 }
 
 async function updateTicketTargetDate(){
@@ -1908,22 +1965,39 @@ function renderDeviceList(){
   totalRow.textContent=`${devices.length} device${devices.length>1?'s':''} — total £${total.toFixed(2)}`;
 }
 
+function populateDeviceSuggestions(){
+  const names=new Set();
+  (cache.devices||[]).forEach(dv=>{ if(dv.deviceName) names.add(dv.deviceName); });
+  const datalist=document.getElementById('dv-device-suggestions');
+  datalist.innerHTML=[...names].sort().map(n=>`<option value="${escapeAttr(n)}"></option>`).join('');
+}
+
 function openDeviceModal(){
   dvEditingId=null;
+  populateDeviceSuggestions();
   document.getElementById('device-modal-title').textContent='Add device';
+  document.getElementById('dv-save-another-btn').style.display='';
+
+  // Pre-fill from the most recently added device on this ticket — saves retyping
+  // for repetitive bulk jobs where most devices get the same treatment.
+  const existing=ticketDevices(currentTicketId);
+  const last=existing.length?existing[existing.length-1]:null;
   document.getElementById('dv-serial').value='';
-  document.getElementById('dv-device').value='';
-  document.getElementById('dv-fault').value='';
-  document.getElementById('dv-notes').value='';
-  document.getElementById('dv-price').value='';
+  document.getElementById('dv-device').value=last?last.deviceName:'';
+  document.getElementById('dv-fault').value=last?last.fault:'';
+  document.getElementById('dv-notes').value=last?last.notes:'Reimaged, tested, all working.';
+  document.getElementById('dv-price').value=last?(last.price||''):'';
   document.getElementById('device-modal').classList.add('open');
+  document.getElementById('dv-serial').focus();
 }
 function closeDeviceModal(){document.getElementById('device-modal').classList.remove('open');}
 
 function editDevice(id){
   const dv=(cache.devices||[]).find(x=>x.id===id);if(!dv)return;
   dvEditingId=id;
+  populateDeviceSuggestions();
   document.getElementById('device-modal-title').textContent='Edit device';
+  document.getElementById('dv-save-another-btn').style.display='none';
   document.getElementById('dv-serial').value=dv.serial;
   document.getElementById('dv-device').value=dv.deviceName;
   document.getElementById('dv-fault').value=dv.fault;
@@ -1932,7 +2006,7 @@ function editDevice(id){
   document.getElementById('device-modal').classList.add('open');
 }
 
-async function saveDevice(){
+async function saveDevice(addAnother){
   const serial=document.getElementById('dv-serial').value.trim();
   if(!serial){alert('Please enter a serial number');return;}
   const deviceName=document.getElementById('dv-device').value.trim();
@@ -1959,6 +2033,15 @@ async function saveDevice(){
     });
     toast('Device added ✓');
   }
+
+  if(addAnother && !dvEditingId){
+    // Keep device/fault/notes/price as-is (same batch usually repeats), just clear the serial
+    renderDeviceList();
+    document.getElementById('dv-serial').value='';
+    document.getElementById('dv-serial').focus();
+    return;
+  }
+
   closeDeviceModal();
   renderDeviceList();
 }
