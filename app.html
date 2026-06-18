@@ -152,6 +152,14 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
 .rev-label{font-size:12px;color:var(--text2);}
 .rev-amount{font-size:28px;font-weight:700;color:var(--green);}
 
+.month-compare-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:14px;display:flex;align-items:center;gap:16px;position:relative;}
+.mc-col{flex:1;text-align:center;}
+.mc-label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px;}
+.mc-amount{font-size:24px;font-weight:700;color:var(--green);}
+.mc-amount-secondary{color:var(--text2);font-size:20px;}
+.mc-divider{width:1px;background:var(--border);align-self:stretch;}
+.mc-trend{position:absolute;top:8px;right:12px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;}
+
 @media(min-width:600px){
   .stats4{grid-template-columns:repeat(4,1fr);}
   .stats3{grid-template-columns:repeat(3,1fr);}
@@ -230,6 +238,20 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
   <div class="rev-banner">
     <div><div class="rev-label">Total earned from outreach</div><div class="rev-amount" id="d-revenue">£0</div></div>
     <div style="text-align:right"><div class="rev-label">Jobs won</div><div style="font-size:24px;font-weight:700;color:var(--blue)" id="d-jobs-won">0</div></div>
+  </div>
+
+  <div class="sec">This month vs last month</div>
+  <div class="month-compare-card" id="month-compare-card">
+    <div class="mc-col">
+      <div class="mc-label" id="mc-this-label">This month</div>
+      <div class="mc-amount" id="mc-this-amount">£0</div>
+    </div>
+    <div class="mc-divider"></div>
+    <div class="mc-col">
+      <div class="mc-label" id="mc-last-label">Last month</div>
+      <div class="mc-amount mc-amount-secondary" id="mc-last-amount">£0</div>
+    </div>
+    <div class="mc-trend" id="mc-trend"></div>
   </div>
 
   <div class="sec">This week</div>
@@ -447,6 +469,9 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
   <div style="display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap;">
     <button class="btn btn-sm" onclick="showPage('reports')">📊 Reports &amp; totals</button>
     <button class="btn btn-sm" onclick="exportToExcel()">📥 Export to Excel</button>
+    <button class="btn btn-sm" onclick="backupAllData()">💾 Backup everything</button>
+    <button class="btn btn-sm" onclick="document.getElementById('restore-file-input').click()">📤 Restore from backup</button>
+    <input type="file" id="restore-file-input" accept=".json" style="display:none;" onchange="handleRestoreFile(event)">
   </div>
 
   <input class="form-input" id="cust-search" placeholder="Search clients..." style="margin-bottom:12px;" oninput="renderCustomerList()">
@@ -959,6 +984,7 @@ function renderDashboard(){
   document.getElementById('d-replies').textContent=replied;
   document.getElementById('d-converted').textContent=converted;
   document.getElementById('d-prog').style.width=biz.length?Math.round(sent/biz.length*100)+'%':'0%';
+  renderMonthComparison();
   const allContacted=Object.values(cache.outreach).flat().filter(b=>b.status!=='unsent');
   const allReplied=allContacted.filter(b=>b.status==='replied'||b.status==='converted');
   document.getElementById('d-all-contacted').textContent=allContacted.length;
@@ -968,6 +994,36 @@ function renderDashboard(){
   const recentItems=[...allContacted].reverse().slice(0,5);
   if(!recentItems.length){recent.innerHTML='<div class="empty"><div class="empty-icon">📋</div><h3>No activity yet</h3><p>Generate this week\'s targets to get started.</p></div>';return;}
   recent.innerHTML=recentItems.map(b=>`<div class="hist-item"><div><div class="hist-name">${b.name}</div><div class="hist-meta">${b.type} · ${b.area}</div></div><span class="tag ${b.status==='converted'?'tag-teal':b.status==='replied'?'tag-green':'tag-amber'}">${b.status==='converted'?'Converted':b.status==='replied'?'Replied':'Messaged'}</span></div>`).join('');
+}
+
+function renderMonthComparison(){
+  const invoices=(cache.documents||[]).filter(d=>d.type==='invoice' && d.status==='paid');
+  const now=new Date();
+  const thisMonthKey=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const lastMonthDate=new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const lastMonthKey=lastMonthDate.getFullYear()+'-'+String(lastMonthDate.getMonth()+1).padStart(2,'0');
+
+  const thisMonthTotal=invoices.filter(d=>(d.issueDate||'').slice(0,7)===thisMonthKey).reduce((s,d)=>s+docTotal(d),0);
+  const lastMonthTotal=invoices.filter(d=>(d.issueDate||'').slice(0,7)===lastMonthKey).reduce((s,d)=>s+docTotal(d),0);
+
+  document.getElementById('mc-this-label').textContent=now.toLocaleDateString('en-GB',{month:'long'});
+  document.getElementById('mc-last-label').textContent=lastMonthDate.toLocaleDateString('en-GB',{month:'long'});
+  document.getElementById('mc-this-amount').textContent='£'+thisMonthTotal.toFixed(2);
+  document.getElementById('mc-last-amount').textContent='£'+lastMonthTotal.toFixed(2);
+
+  const trendEl=document.getElementById('mc-trend');
+  if(lastMonthTotal===0 && thisMonthTotal===0){
+    trendEl.textContent='';
+  } else if(lastMonthTotal===0){
+    trendEl.textContent='New';
+    trendEl.style.background='var(--blue-d)'; trendEl.style.color='var(--blue)';
+  } else {
+    const pctChange=((thisMonthTotal-lastMonthTotal)/lastMonthTotal)*100;
+    const up=pctChange>=0;
+    trendEl.textContent=(up?'▲ ':'▼ ')+Math.abs(Math.round(pctChange))+'%';
+    trendEl.style.background=up?'var(--green-d)':'var(--red-d)';
+    trendEl.style.color=up?'var(--green)':'var(--red)';
+  }
 }
 
 function renderOutreach(){
@@ -1258,6 +1314,16 @@ async function saveCustomer(){
   if(!address){alert('Please enter an address — this is needed for invoices');return;}
   const notes=document.getElementById('cu-notes').value.trim();
 
+  if(!cuEditingId){
+    const possibleDupe=findPossibleDuplicateCustomer(name, phone);
+    if(possibleDupe){
+      const matchedOn = possibleDupe.phone===phone ? 'same phone number' : 'similar name';
+      if(!confirm(`"${possibleDupe.name}" already exists with a ${matchedOn} (${possibleDupe.phone||'no phone'}). Add "${name}" as a separate new client anyway?`)){
+        return;
+      }
+    }
+  }
+
   if(cuEditingId){
     const existing=getCustomer(cuEditingId);
     const {error}=await sb.from('customers').update({name,phone,email,address,notes}).eq('id',cuEditingId);
@@ -1281,6 +1347,39 @@ async function saveCustomer(){
       closeCustomerPicker();
     }
   }
+}
+
+function normalizePhone(p){
+  return (p||'').replace(/[^0-9]/g,'');
+}
+
+function levenshteinClose(a, b){
+  // Simple closeness check: same after lowercasing/trimming, or one contains the other,
+  // or edit distance is small relative to length. Good enough to catch typos like
+  // "Mrs Ahmed" vs "Mrs Ahmad" without flagging genuinely different names.
+  a=a.toLowerCase().trim(); b=b.toLowerCase().trim();
+  if(a===b) return true;
+  if(a.length>3 && b.length>3 && (a.includes(b)||b.includes(a))) return true;
+  const m=a.length, n=b.length;
+  if(Math.abs(m-n)>3) return false;
+  const dp=Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      dp[i][j]=a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+    }
+  }
+  return dp[m][n]<=2;
+}
+
+function findPossibleDuplicateCustomer(name, phone){
+  const normPhone=normalizePhone(phone);
+  for(const c of (cache.customers||[])){
+    if(normPhone && normalizePhone(c.phone)===normPhone) return c;
+    if(levenshteinClose(name, c.name)) return c;
+  }
+  return null;
 }
 
 // ---------- CLIENT DETAIL ----------
@@ -2409,6 +2508,109 @@ function renderReports(){
 }
 
 // ---------- EXCEL EXPORT ----------
+// ---------- BACKUP & RESTORE ----------
+function backupAllData(){
+  const backup={
+    backupVersion: 1,
+    createdAt: new Date().toISOString(),
+    business: MY_BUSINESS.name,
+    customers: cache.customers||[],
+    documents: cache.documents||[],
+    tickets: cache.tickets||[],
+    devices: cache.devices||[],
+    jobs: cache.jobs||[]
+  };
+  const blob=new Blob([JSON.stringify(backup,null,2)], {type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const dateStr=new Date().toISOString().slice(0,10);
+  a.href=url; a.download=`AbdulsTechSolutions_Backup_${dateStr}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Backup downloaded ✓ keep it somewhere safe');
+}
+
+function handleRestoreFile(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=async (e)=>{
+    let backup;
+    try{
+      backup=JSON.parse(e.target.result);
+    }catch(err){
+      toast('That file doesn\'t look like a valid backup', 'var(--red)');
+      return;
+    }
+    if(!backup.backupVersion || !backup.customers){
+      toast('That file doesn\'t look like a valid backup', 'var(--red)');
+      return;
+    }
+    const counts=[
+      (backup.customers||[]).length+' clients',
+      (backup.documents||[]).length+' quotes/invoices',
+      (backup.tickets||[]).length+' tickets',
+      (backup.devices||[]).length+' devices'
+    ].join(', ');
+    if(!confirm(`Restore from backup dated ${backup.createdAt?formatDateUK(backup.createdAt.slice(0,10)):'unknown date'}?\n\nContains: ${counts}\n\nExisting records with matching IDs will be skipped — this only adds what's missing, it won't overwrite or duplicate anything currently in your account.`)){
+      event.target.value='';
+      return;
+    }
+    await restoreFromBackup(backup);
+    event.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+async function restoreFromBackup(backup){
+  toast('Restoring… this may take a moment');
+  let restored=0, skipped=0;
+
+  const existingCustIds=new Set((cache.customers||[]).map(c=>c.id));
+  for(const c of (backup.customers||[])){
+    if(existingCustIds.has(c.id)){skipped++;continue;}
+    const {error}=await sb.from('customers').insert({id:c.id,name:c.name,phone:c.phone,email:c.email,address:c.address,notes:c.notes});
+    if(!error) restored++;
+  }
+
+  const existingDocIds=new Set((cache.documents||[]).map(d=>d.id));
+  for(const d of (backup.documents||[])){
+    if(existingDocIds.has(d.id)){skipped++;continue;}
+    const {error}=await sb.from('documents').insert({
+      id:d.id, doc_type:d.type, doc_number:d.number, customer_id:d.customerId, client_name:d.client,
+      client_contact:d.contact, client_address:d.address, summary:d.summary, items:d.items, notes:d.notes,
+      status:d.status, issue_date:d.issueDate, due_date:d.dueDate, payment_method:d.paymentMethod,
+      linked_job_id:d.linkedJobId, converted_to_invoice_id:d.convertedToInvoiceId
+    });
+    if(!error) restored++;
+  }
+
+  const existingTicketIds=new Set((cache.tickets||[]).map(t=>t.id));
+  for(const t of (backup.tickets||[])){
+    if(existingTicketIds.has(t.id)){skipped++;continue;}
+    const {error}=await sb.from('tickets').insert({
+      id:t.id, ticket_number:t.number, customer_id:t.customerId, document_id:t.documentId,
+      title:t.title, status:t.status, log:t.log, target_date:t.targetDate
+    });
+    if(!error) restored++;
+  }
+
+  const existingDeviceIds=new Set((cache.devices||[]).map(dv=>dv.id));
+  for(const dv of (backup.devices||[])){
+    if(existingDeviceIds.has(dv.id)){skipped++;continue;}
+    const {error}=await sb.from('devices').insert({
+      id:dv.id, ticket_id:dv.ticketId, serial:dv.serial, device_name:dv.deviceName,
+      fault:dv.fault, notes:dv.notes, price:dv.price
+    });
+    if(!error) restored++;
+  }
+
+  await loadAllData();
+  renderCustomerList();
+  renderQuotes();
+  toast(`Restore complete — ${restored} records added, ${skipped} already existed`);
+}
+
 function exportToExcel(){
   if(typeof XLSX === 'undefined'){
     toast('Export library still loading — try again in a second', 'var(--red)');
