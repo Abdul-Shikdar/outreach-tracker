@@ -1527,7 +1527,15 @@ function docSubtotal(d){
 }
 function docProfit(d){
   // Profit = labour only. Parts cost and mileage are pass-through (not profit).
-  return parseFloat(d.labour)||0;
+  // If no breakdown has been filled in at all (old invoices, pre-breakdown), fall back
+  // to treating the full invoice total as profit, so old paid jobs don't vanish from reports.
+  const partsCost=parseFloat(d.partsCost)||0;
+  const labour=parseFloat(d.labour)||0;
+  const mileage=parseFloat(d.mileage)||0;
+  if(partsCost===0 && labour===0 && mileage===0){
+    return docTotal(d);
+  }
+  return labour;
 }
 
 // ---------- DOC BUILDER ----------
