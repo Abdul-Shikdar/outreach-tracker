@@ -699,6 +699,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
     <div class="form-group">
       <label class="form-label">Payment method</label>
       <select class="form-input" id="dc-payment" onchange="updateDocTotal()">
+        <option value="" disabled selected>Select payment method...</option>
         <option value="cash">Cash (5% discount applied)</option>
         <option value="transfer">Bank transfer (full price)</option>
         <option value="none">Card / other — no discount</option>
@@ -1565,7 +1566,7 @@ function openDocModal(type, customerId){
 
   document.getElementById('dc-notes').value='';
   document.getElementById('dc-summary').value='';
-  document.getElementById('dc-payment').value='cash';
+  document.getElementById('dc-payment').value='';
   document.getElementById('dc-parts-cost').value='';
   document.getElementById('dc-labour').value='';
   document.getElementById('dc-mileage').value='';
@@ -1640,6 +1641,7 @@ async function saveDoc(){
   const dueDate=document.getElementById('dc-due').value;
   const notes=document.getElementById('dc-notes').value.trim();
   const paymentMethod=document.getElementById('dc-payment').value;
+  if(!paymentMethod){alert('Please select a payment method');return;}
   const partsCost=parseFloat(document.getElementById('dc-parts-cost').value)||0;
   const labour=parseFloat(document.getElementById('dc-labour').value)||0;
   const mileage=parseFloat(document.getElementById('dc-mileage').value)||0;
@@ -1949,6 +1951,17 @@ async function updateTicketStatus(){
       }
     }
 
+    if(!devices.length && !linkedInvoice){
+      const sourceDoc=cache.documents.find(d=>d.id===t.documentId);
+      if(sourceDoc && sourceDoc.type==='quote'){
+        if(confirm(`No invoice exists for this job yet. Create one now from quote ${sourceDoc.number}?`)){
+          await convertQuoteToInvoice(sourceDoc.id, true);
+          renderTicketDetail();
+          return;
+        }
+      }
+    }
+
     if(linkedInvoice && linkedInvoice.status==='paid'){
       toast('💰 £'+docTotal(linkedInvoice).toFixed(2)+' earned on this job — ticket done', 'var(--green)');
     } else {
@@ -2216,10 +2229,10 @@ function formatDateTimeUK(iso){
   return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 }
 
-async function convertQuoteToInvoice(quoteId){
+async function convertQuoteToInvoice(quoteId, skipConfirm){
   const q=cache.documents.find(x=>x.id===quoteId);if(!q)return;
   const c=getCustomer(q.customerId);
-  if(!confirm(`Create an invoice from ${q.number} for ${c?c.name:q.client}?`))return;
+  if(!skipConfirm && !confirm(`Create an invoice from ${q.number} for ${c?c.name:q.client}?`))return;
   const number=genDocNumber('invoice');
   const today=new Date().toISOString().slice(0,10);
   const due=new Date(); due.setDate(due.getDate()+14);
