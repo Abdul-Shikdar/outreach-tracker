@@ -240,7 +240,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
     <div style="text-align:right"><div class="rev-label">Jobs won</div><div style="font-size:24px;font-weight:700;color:var(--blue)" id="d-jobs-won">0</div></div>
   </div>
 
-  <div class="sec">This month vs last month</div>
+  <div class="sec">This month vs last month — profit</div>
   <div class="month-compare-card" id="month-compare-card">
     <div class="mc-col">
       <div class="mc-label" id="mc-this-label">This month</div>
@@ -501,6 +501,9 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
     <div class="stat"><div class="stat-n" style="color:var(--green)" id="rep-total-paid">£0</div><div class="stat-l">Total paid</div></div>
     <div class="stat"><div class="stat-n" style="color:var(--red)" id="rep-total-overdue">£0</div><div class="stat-l">Overdue</div></div>
   </div>
+  <div class="stats3" style="margin-bottom:18px;">
+    <div class="stat"><div class="stat-n" style="color:var(--green)" id="rep-total-profit">£0</div><div class="stat-l">Profit (labour, paid jobs)</div></div>
+  </div>
 
   <div class="sec">By year</div>
   <div id="rep-yearly"></div>
@@ -676,6 +679,23 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
     <div id="dc-items"></div>
     <button class="btn btn-sm" onclick="addDocItem()" style="margin-bottom:12px;">+ Add line item</button>
 
+    <div class="sec" style="margin-top:6px;">Cost breakdown (for your profit tracking — not shown on the printed document)</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Parts cost (£)</label>
+        <input class="form-input" id="dc-parts-cost" type="number" min="0" step="0.01" placeholder="0.00" oninput="updateDocTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Labour (£)</label>
+        <input class="form-input" id="dc-labour" type="number" min="0" step="0.01" placeholder="0.00" oninput="updateDocTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mileage (£)</label>
+        <input class="form-input" id="dc-mileage" type="number" min="0" step="0.01" placeholder="0.00" oninput="updateDocTotal()">
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin:-4px 0 12px;" id="dc-breakdown-hint"></div>
+
     <div class="form-group">
       <label class="form-label">Payment method</label>
       <select class="form-input" id="dc-payment" onchange="updateDocTotal()">
@@ -777,7 +797,8 @@ async function loadAllData() {
     contact: d.client_contact || '', address: d.client_address || '', summary: d.summary || '',
     items: d.items || [], notes: d.notes || '', status: d.status,
     issueDate: d.issue_date, dueDate: d.due_date, paymentMethod: d.payment_method || 'cash',
-    customerId: d.customer_id, linkedJobId: d.linked_job_id, convertedToInvoiceId: d.converted_to_invoice_id
+    customerId: d.customer_id, linkedJobId: d.linked_job_id, convertedToInvoiceId: d.converted_to_invoice_id,
+    partsCost: parseFloat(d.parts_cost)||0, labour: parseFloat(d.labour)||0, mileage: parseFloat(d.mileage)||0
   }));
 
   cache.tickets = (ticketRows || []).map(t => ({
@@ -1003,8 +1024,8 @@ function renderMonthComparison(){
   const lastMonthDate=new Date(now.getFullYear(), now.getMonth()-1, 1);
   const lastMonthKey=lastMonthDate.getFullYear()+'-'+String(lastMonthDate.getMonth()+1).padStart(2,'0');
 
-  const thisMonthTotal=invoices.filter(d=>(d.issueDate||'').slice(0,7)===thisMonthKey).reduce((s,d)=>s+docTotal(d),0);
-  const lastMonthTotal=invoices.filter(d=>(d.issueDate||'').slice(0,7)===lastMonthKey).reduce((s,d)=>s+docTotal(d),0);
+  const thisMonthTotal=invoices.filter(d=>(d.issueDate||'').slice(0,7)===thisMonthKey).reduce((s,d)=>s+docProfit(d),0);
+  const lastMonthTotal=invoices.filter(d=>(d.issueDate||'').slice(0,7)===lastMonthKey).reduce((s,d)=>s+docProfit(d),0);
 
   document.getElementById('mc-this-label').textContent=now.toLocaleDateString('en-GB',{month:'long'});
   document.getElementById('mc-last-label').textContent=lastMonthDate.toLocaleDateString('en-GB',{month:'long'});
@@ -1504,6 +1525,10 @@ function docTotal(d){
 function docSubtotal(d){
   return (d.items||[]).reduce((s,it)=>s+(parseFloat(it.qty)||0)*(parseFloat(it.price)||0),0);
 }
+function docProfit(d){
+  // Profit = labour only. Parts cost and mileage are pass-through (not profit).
+  return parseFloat(d.labour)||0;
+}
 
 // ---------- DOC BUILDER ----------
 function setDocClientDisplay(c){
@@ -1533,6 +1558,9 @@ function openDocModal(type, customerId){
   document.getElementById('dc-notes').value='';
   document.getElementById('dc-summary').value='';
   document.getElementById('dc-payment').value='cash';
+  document.getElementById('dc-parts-cost').value='';
+  document.getElementById('dc-labour').value='';
+  document.getElementById('dc-mileage').value='';
   const today=new Date().toISOString().slice(0,10);
   document.getElementById('dc-issue').value=today;
   const due=new Date(); due.setDate(due.getDate() + (type==='quote'?30:14));
@@ -1585,6 +1613,24 @@ function updateDocTotal(){
     subRow.textContent='';
   }
   document.getElementById('dc-total').textContent='£'+total.toFixed(2);
+
+  const partsCost=parseFloat(document.getElementById('dc-parts-cost').value)||0;
+  const labour=parseFloat(document.getElementById('dc-labour').value)||0;
+  const mileage=parseFloat(document.getElementById('dc-mileage').value)||0;
+  const breakdownSum=partsCost+labour+mileage;
+  const hint=document.getElementById('dc-breakdown-hint');
+  if(breakdownSum===0){
+    hint.textContent='';
+  } else {
+    const diff=total-breakdownSum;
+    if(Math.abs(diff)<0.01){
+      hint.textContent=`Profit (labour): £${labour.toFixed(2)}`;
+      hint.style.color='var(--green)';
+    } else {
+      hint.textContent=`Breakdown £${breakdownSum.toFixed(2)} doesn't match total £${total.toFixed(2)} (off by £${Math.abs(diff).toFixed(2)}) — profit will still be £${labour.toFixed(2)}`;
+      hint.style.color='var(--red)';
+    }
+  }
 }
 
 async function saveDoc(){
@@ -1595,6 +1641,9 @@ async function saveDoc(){
   const dueDate=document.getElementById('dc-due').value;
   const notes=document.getElementById('dc-notes').value.trim();
   const paymentMethod=document.getElementById('dc-payment').value;
+  const partsCost=parseFloat(document.getElementById('dc-parts-cost').value)||0;
+  const labour=parseFloat(document.getElementById('dc-labour').value)||0;
+  const mileage=parseFloat(document.getElementById('dc-mileage').value)||0;
   const items=readDocItems();
   if(!items.length){alert('Add at least one line item');return;}
 
@@ -1607,10 +1656,11 @@ async function saveDoc(){
     const existing=cache.documents.find(d=>d.id===dcEditingId);
     const {error}=await sb.from('documents').update({
       customer_id:dcSelectedCustomerId, client_name:clientName, client_contact:clientContact, client_address:clientAddress,
-      summary, items, notes, issue_date:issueDate, due_date:dueDate||null, payment_method:paymentMethod
+      summary, items, notes, issue_date:issueDate, due_date:dueDate||null, payment_method:paymentMethod,
+      parts_cost:partsCost, labour, mileage
     }).eq('id',dcEditingId);
     if(error){toast('Error: '+error.message,'var(--red)');return;}
-    Object.assign(existing,{customerId:dcSelectedCustomerId,client:clientName,contact:clientContact,address:clientAddress,summary,items,notes,issueDate,dueDate,paymentMethod});
+    Object.assign(existing,{customerId:dcSelectedCustomerId,client:clientName,contact:clientContact,address:clientAddress,summary,items,notes,issueDate,dueDate,paymentMethod,partsCost,labour,mileage});
     toast('Updated ✓');
   } else {
     const type=document.getElementById('doc-modal-title').dataset.type;
@@ -1618,14 +1668,16 @@ async function saveDoc(){
     const {data,error}=await sb.from('documents').insert({
       doc_type:type, doc_number:number, customer_id:dcSelectedCustomerId, client_name:clientName,
       client_contact:clientContact, client_address:clientAddress, summary, items, notes, status:'draft',
-      issue_date:issueDate, due_date:dueDate||null, payment_method:paymentMethod
+      issue_date:issueDate, due_date:dueDate||null, payment_method:paymentMethod,
+      parts_cost:partsCost, labour, mileage
     }).select().single();
     if(error){toast('Error: '+error.message,'var(--red)');return;}
     cache.documents.push({
       id:data.id, type:data.doc_type, number:data.doc_number, customerId:data.customer_id, client:data.client_name,
       contact:data.client_contact||'', address:data.client_address||'', summary:data.summary||'', items:data.items||[],
       notes:data.notes||'', status:data.status, issueDate:data.issue_date, dueDate:data.due_date,
-      paymentMethod:data.payment_method||'cash', linkedJobId:data.linked_job_id, convertedToInvoiceId:data.converted_to_invoice_id
+      paymentMethod:data.payment_method||'cash', linkedJobId:data.linked_job_id, convertedToInvoiceId:data.converted_to_invoice_id,
+      partsCost:data.parts_cost||0, labour:data.labour||0, mileage:data.mileage||0
     });
     toast((type==='quote'?'Quote':'Invoice')+' '+number+' created 🧾');
   }
@@ -1650,6 +1702,9 @@ function editDoc(id){
   document.getElementById('dc-issue').value=d.issueDate;
   document.getElementById('dc-due').value=d.dueDate||'';
   document.getElementById('dc-payment').value=d.paymentMethod||'cash';
+  document.getElementById('dc-parts-cost').value=d.partsCost||'';
+  document.getElementById('dc-labour').value=d.labour||'';
+  document.getElementById('dc-mileage').value=d.mileage||'';
   document.getElementById('dc-items').innerHTML='';
   dcItemSeq=0;
   (d.items.length?d.items:[{}]).forEach(it=>addDocItem(it));
@@ -2444,17 +2499,19 @@ function renderReports(){
   const totalInvoiced=invoices.reduce((s,d)=>s+docTotal(d),0);
   const totalPaid=invoices.filter(d=>d.status==='paid').reduce((s,d)=>s+docTotal(d),0);
   const totalOverdue=invoices.filter(isOverdue).reduce((s,d)=>s+docTotal(d),0);
+  const totalProfit=invoices.filter(d=>d.status==='paid').reduce((s,d)=>s+docProfit(d),0);
   document.getElementById('rep-total-invoiced').textContent='£'+totalInvoiced.toFixed(2);
   document.getElementById('rep-total-paid').textContent='£'+totalPaid.toFixed(2);
   document.getElementById('rep-total-overdue').textContent='£'+totalOverdue.toFixed(2);
+  document.getElementById('rep-total-profit').textContent='£'+totalProfit.toFixed(2);
 
   // Group by year
   const byYear={};
   invoices.forEach(d=>{
     const year=(d.issueDate||'').slice(0,4)||'Unknown';
-    if(!byYear[year]) byYear[year]={invoiced:0,paid:0,count:0};
+    if(!byYear[year]) byYear[year]={invoiced:0,paid:0,profit:0,count:0};
     byYear[year].invoiced+=docTotal(d);
-    if(d.status==='paid') byYear[year].paid+=docTotal(d);
+    if(d.status==='paid'){ byYear[year].paid+=docTotal(d); byYear[year].profit+=docProfit(d); }
     byYear[year].count++;
   });
   const years=Object.keys(byYear).sort().reverse();
@@ -2472,6 +2529,9 @@ function renderReports(){
           <span>Invoiced: £${byYear[y].invoiced.toFixed(2)}</span>
           <span style="color:var(--green)">Paid: £${byYear[y].paid.toFixed(2)}</span>
         </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:2px;font-size:13px;">
+          <span style="color:var(--green)">Profit: £${byYear[y].profit.toFixed(2)}</span>
+        </div>
       </div>`).join('');
   }
 
@@ -2480,9 +2540,9 @@ function renderReports(){
   const byMonth={};
   invoices.filter(d=>(d.issueDate||'').slice(0,4)===thisYear).forEach(d=>{
     const month=(d.issueDate||'').slice(0,7); // YYYY-MM
-    if(!byMonth[month]) byMonth[month]={invoiced:0,paid:0,count:0};
+    if(!byMonth[month]) byMonth[month]={invoiced:0,paid:0,profit:0,count:0};
     byMonth[month].invoiced+=docTotal(d);
-    if(d.status==='paid') byMonth[month].paid+=docTotal(d);
+    if(d.status==='paid'){ byMonth[month].paid+=docTotal(d); byMonth[month].profit+=docProfit(d); }
     byMonth[month].count++;
   });
   const months=Object.keys(byMonth).sort().reverse();
@@ -2501,6 +2561,9 @@ function renderReports(){
         <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:14px;">
           <span>Invoiced: £${byMonth[m].invoiced.toFixed(2)}</span>
           <span style="color:var(--green)">Paid: £${byMonth[m].paid.toFixed(2)}</span>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:2px;font-size:13px;">
+          <span style="color:var(--green)">Profit: £${byMonth[m].profit.toFixed(2)}</span>
         </div>
       </div>`;
     }).join('');
@@ -2631,6 +2694,10 @@ function exportToExcel(){
       'Payment method': d.paymentMethod==='cash'?'Cash':d.paymentMethod==='none'?'Card / other':'Bank transfer',
       'Subtotal (£)': docSubtotal(d).toFixed(2),
       'Total after discount (£)': docTotal(d).toFixed(2),
+      'Parts cost (£)': (parseFloat(d.partsCost)||0).toFixed(2),
+      'Labour (£)': (parseFloat(d.labour)||0).toFixed(2),
+      'Mileage (£)': (parseFloat(d.mileage)||0).toFixed(2),
+      'Profit (£)': docProfit(d).toFixed(2),
       'Issue date': d.issueDate||'',
       'Due date': d.dueDate||'',
       'Notes': d.notes||''
@@ -2639,7 +2706,7 @@ function exportToExcel(){
 
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.json_to_sheet(rows);
-  ws['!cols']=[{wch:10},{wch:9},{wch:20},{wch:14},{wch:22},{wch:28},{wch:30},{wch:10},{wch:14},{wch:14},{wch:18},{wch:12},{wch:12},{wch:30}];
+  ws['!cols']=[{wch:10},{wch:9},{wch:20},{wch:14},{wch:22},{wch:28},{wch:30},{wch:10},{wch:14},{wch:14},{wch:14},{wch:13},{wch:11},{wch:11},{wch:11},{wch:18},{wch:12},{wch:12},{wch:30}];
   XLSX.utils.book_append_sheet(wb,ws,'Quotes & Invoices');
 
   // Summary sheet
@@ -2649,6 +2716,7 @@ function exportToExcel(){
     {Metric:'Total paid', 'Amount (£)': invoices.filter(d=>d.status==='paid').reduce((s,d)=>s+docTotal(d),0).toFixed(2)},
     {Metric:'Total unpaid', 'Amount (£)': invoices.filter(d=>d.status!=='paid').reduce((s,d)=>s+docTotal(d),0).toFixed(2)},
     {Metric:'Total overdue', 'Amount (£)': invoices.filter(isOverdue).reduce((s,d)=>s+docTotal(d),0).toFixed(2)},
+    {Metric:'Total profit (paid jobs, labour only)', 'Amount (£)': invoices.filter(d=>d.status==='paid').reduce((s,d)=>s+docProfit(d),0).toFixed(2)},
   ];
   const summaryWs=XLSX.utils.json_to_sheet(summaryRows);
   summaryWs['!cols']=[{wch:20},{wch:14}];
